@@ -32,7 +32,6 @@ type StoreConfig struct {
 // Config is the top-level configuration loaded from config.yaml.
 type Config struct {
 	Sources       []Source    `yaml:"sources"`
-	Schedule      string      `yaml:"schedule"`
 	Notifications []string    `yaml:"notifications"`
 	Email         EmailConfig `yaml:"email"`
 	Store         StoreConfig `yaml:"store"`
@@ -40,9 +39,8 @@ type Config struct {
 
 // Secrets holds credentials loaded from environment variables.
 type Secrets struct {
-	SMTPUser          string
-	SMTPPassword      string
-	DiscordWebhookURL string
+	SMTPUser     string
+	SMTPPassword string
 }
 
 // LoadConfig reads and parses the YAML config file at the given path.
@@ -71,19 +69,17 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 // LoadSecrets reads secrets from environment variables.
-// If envPath is provided, it loads a .env file first (non-fatal if missing).
+// If envPath is provided, it loads a .env file first (skips silently if file doesn't exist).
 func LoadSecrets(envPath string) (*Secrets, error) {
-	// load .env file into environment if path provided
 	if envPath != "" {
-		if err := loadEnvFile(envPath); err != nil {
+		if err := loadEnvFile(envPath); err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("load .env file: %w", err)
 		}
 	}
 
 	return &Secrets{
-		SMTPUser:          os.Getenv("SMTP_USER"),
-		SMTPPassword:      os.Getenv("SMTP_PASSWORD"),
-		DiscordWebhookURL: os.Getenv("DISCORD_WEBHOOK_URL"),
+		SMTPUser:     os.Getenv("SMTP_USER"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 	}, nil
 }
 
@@ -133,8 +129,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("at least one notification channel is required")
 	}
 	for _, n := range c.Notifications {
-		if n != "email" && n != "discord" {
-			return fmt.Errorf("unknown notification channel: %s (use email or discord)", n)
+		if n != "email" {
+			return fmt.Errorf("unknown notification channel: %s (use email)", n)
 		}
 	}
 
@@ -151,10 +147,6 @@ func (s *Secrets) Validate(notifications []string) error {
 			}
 			if s.SMTPPassword == "" {
 				return fmt.Errorf("SMTP_PASSWORD is required for email notifications")
-			}
-		case "discord":
-			if s.DiscordWebhookURL == "" {
-				return fmt.Errorf("DISCORD_WEBHOOK_URL is required for discord notifications")
 			}
 		}
 	}

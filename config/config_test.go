@@ -19,11 +19,8 @@ sources:
   - name: Electrek
     url: https://electrek.co/feed
 
-schedule: "0 8 * * *"
-
 notifications:
   - email
-  - discord
 
 email:
   smtp_host: smtp.gmail.com
@@ -59,8 +56,8 @@ store:
 	}
 
 	// verify notifications
-	if len(cfg.Notifications) != 2 {
-		t.Errorf("expected 2 notifications, got %d", len(cfg.Notifications))
+	if len(cfg.Notifications) != 1 {
+		t.Errorf("expected 1 notification, got %d", len(cfg.Notifications))
 	}
 
 	// verify email
@@ -195,7 +192,6 @@ func TestLoadSecrets(t *testing.T) {
 # secrets for feedforward
 SMTP_USER=testuser@gmail.com
 SMTP_PASSWORD=app-password-here
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123/abc
 `
 	if err := os.WriteFile(envPath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write test .env: %v", err)
@@ -211,9 +207,6 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123/abc
 	}
 	if secrets.SMTPPassword != "app-password-here" {
 		t.Errorf("expected SMTP_PASSWORD set, got %q", secrets.SMTPPassword)
-	}
-	if secrets.DiscordWebhookURL != "https://discord.com/api/webhooks/123/abc" {
-		t.Errorf("expected DISCORD_WEBHOOK_URL set, got %q", secrets.DiscordWebhookURL)
 	}
 }
 
@@ -240,20 +233,6 @@ func TestSecretsValidate(t *testing.T) {
 			},
 			notifications: []string{"email"},
 			wantErr:       true,
-		},
-		{
-			name:          "missing discord webhook",
-			secrets:       &Secrets{},
-			notifications: []string{"discord"},
-			wantErr:       true,
-		},
-		{
-			name: "discord webhook present",
-			secrets: &Secrets{
-				DiscordWebhookURL: "https://discord.com/api/webhooks/x",
-			},
-			notifications: []string{"discord"},
-			wantErr:       false,
 		},
 		{
 			name:    "no notifications — nothing to validate",
