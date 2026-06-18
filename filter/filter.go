@@ -2,7 +2,6 @@ package filter
 
 import (
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -50,79 +49,27 @@ func TopN(articles []Article, n int) []Article {
 	return sorted[:n]
 }
 
-// TopNPerSource returns the most recent N articles for each source.
-func TopNPerSource(articles []Article, n int) []Article {
-	// group articles by source
+// TopNPerSourceMap returns the most recent articles per source,
+// using per-source limits from a map (source name → max articles).
+// Sources not in the map default to 5.
+func TopNPerSourceMap(articles []Article, limits map[string]int) []Article {
 	groups := make(map[string][]Article)
 	for _, a := range articles {
 		groups[a.Source] = append(groups[a.Source], a)
 	}
 
-	// collect top N from each group
 	var result []Article
-	for _, group := range groups {
+	for source, group := range groups {
+		n := limits[source]
+		if n <= 0 {
+			n = 5
+		}
 		top := TopN(group, n)
 		result = append(result, top...)
 	}
 
-	// sort the combined result by publish date
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Published.After(result[j].Published)
 	})
-	return result
-}
-
-// ByKeyword filters articles by keywords in their title or description.
-// If allowlist is non-empty, only articles matching at least one allowed keyword are kept.
-// Articles matching any blocked keyword are always removed (even if they matched allowlist).
-// Matching is case-insensitive.
-func ByKeyword(articles []Article, allowlist, blocklist []string) []Article {
-	var filtered []Article
-	for _, a := range articles {
-		// if allowlist is set, the article must match at least one keyword
-		if len(allowlist) > 0 && !matchesAny(a, allowlist) {
-			continue
-		}
-		// remove if it matches any blocked keyword
-		if matchesAny(a, blocklist) {
-			continue
-		}
-		filtered = append(filtered, a)
-	}
-	return filtered
-}
-
-// matchesAny returns true if the article's title or description contains
-// any of the given keywords (case-insensitive substring match).
-func matchesAny(a Article, keywords []string) bool {
-	title := strings.ToLower(a.Title)
-	desc := strings.ToLower(a.Description)
-	for _, kw := range keywords {
-		lower := strings.ToLower(kw)
-		if strings.Contains(title, lower) || strings.Contains(desc, lower) {
-			return true
-		}
-	}
-	return false
-}
-
-// Digest is a convenience method that runs the full pipeline:
-// remove seen → filter by keywords → pick top N per source.
-// It marks kept articles as seen in the store.
-func Digest(articles []Article, seen Hasher, allowlist, blocklist []string, maxPerSource int) []Article {
-	// step 1: remove already-seen articles
-	fresh := RemoveSeen(articles, seen)
-
-	// step 2: apply keyword filters
-	filtered := ByKeyword(fresh, allowlist, blocklist)
-
-	// step 3: pick top N per source
-	result := TopNPerSource(filtered, maxPerSource)
-
-	// step 4: mark kept articles as seen
-	for _, a := range result {
-		seen.Mark(a.Link)
-	}
-
 	return result
 }
