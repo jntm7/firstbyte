@@ -1,0 +1,22 @@
+# Project instructions for LLM agents
+AGENTS.md
+
+# Binary output
+feedforward
+firstbyte
+
+# Environment secrets
+.env
+
+# Seen-article store (runtime data)
+seen.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
