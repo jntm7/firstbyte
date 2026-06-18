@@ -4,7 +4,7 @@
 sources:
   - name: Hacker News
     url: https://news.ycombinator.com/rss
-    max_articles: 3
+    max_articles: 5
   - name: GitHub Blog
     url: https://github.blog/feed/
     max_articles: 2
@@ -36,14 +36,12 @@ sources:
     url: https://techcrunch.com/feed/
     max_articles: 2
 
-# Schedule is informational only.
-# Use system cron, Docker, or GitHub Actions to trigger runs.
-schedule: "0 8 * * *"
+# Schedule is configured externally (cron, Docker, GitHub Actions).
+# Example: "0 8 * * *" for daily at 8 AM.
 
-# Notification channels (one or both of: email, discord)
+# Notification channels (currently only email is supported)
 notifications:
   - email
-  - discord
 
 # SMTP settings for email delivery
 email:
