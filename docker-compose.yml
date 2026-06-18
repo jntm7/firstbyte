@@ -1,0 +1,8 @@
+services:
+  firstbyte:
+    build: .
+    container_name: firstbyte
+    env_file: .env
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+      - ./seen.json:/seen.json
