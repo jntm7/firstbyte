@@ -4,6 +4,10 @@ AGENTS.md
 # Binary output
 feedforward
 firstbyte
+firstbyte-linux
+
+# User config (secrets + sources)
+config.yaml
 
 # Environment secrets
 .env
