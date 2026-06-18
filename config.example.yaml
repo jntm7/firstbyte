@@ -1,0 +1,57 @@
+# FirstByte — Example Configuration
+# Copy this file to config.yaml and edit to suit your feeds.
+
+sources:
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+    max_articles: 3
+  - name: GitHub Blog
+    url: https://github.blog/feed/
+    max_articles: 2
+  - name: Lobsters
+    url: https://lobste.rs/rss
+    max_articles: 2
+  - name: OpenAI Blog
+    url: https://openai.com/blog/rss.xml
+    max_articles: 2
+  - name: Engadget
+    url: https://www.engadget.com/rss.xml
+    max_articles: 2
+  - name: Wired
+    url: https://www.wired.com/feed/rss
+    max_articles: 2
+  - name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+    max_articles: 2
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+    max_articles: 2
+  - name: TNW
+    url: https://thenextweb.com/feed
+    max_articles: 2
+  - name: Electrek
+    url: https://electrek.co/feed
+    max_articles: 2
+  - name: TechCrunch
+    url: https://techcrunch.com/feed/
+    max_articles: 2
+
+# Schedule is informational only.
+# Use system cron, Docker, or GitHub Actions to trigger runs.
+schedule: "0 8 * * *"
+
+# Notification channels (one or both of: email, discord)
+notifications:
+  - email
+  - discord
+
+# SMTP settings for email delivery
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  from: digest@example.com
+  to: you@example.com
+
+# Path to the seen-article store (prevents duplicate articles across runs)
+store:
+  path: ./seen.json
