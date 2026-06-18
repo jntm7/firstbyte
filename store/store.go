@@ -70,9 +70,4 @@ func (s *Store) Save() error {
 	return nil
 }
 
-// Size returns the number of seen items in the store.
-func (s *Store) Size() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.items)
-}
+

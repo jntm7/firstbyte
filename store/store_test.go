@@ -15,8 +15,8 @@ func TestNewEmpty(t *testing.T) {
 		t.Fatalf("New() error: %v", err)
 	}
 
-	if s.Size() != 0 {
-		t.Errorf("expected empty store, got %d items", s.Size())
+	if len(s.items) != 0 {
+		t.Errorf("expected empty store, got %d items", len(s.items))
 	}
 }
 
@@ -74,8 +74,8 @@ func TestSaveAndReload(t *testing.T) {
 		t.Fatalf("New() reload error: %v", err)
 	}
 
-	if s2.Size() != 3 {
-		t.Errorf("expected 3 items after reload, got %d", s2.Size())
+	if len(s2.items) != 3 {
+		t.Errorf("expected 3 items after reload, got %d", len(s2.items))
 	}
 	if !s2.Has("https://example.com/a") {
 		t.Error("expected item 'a' to persist across reload")
@@ -112,7 +112,7 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	// should have exactly 1 item (same key marked 10 times)
-	if s.Size() != 1 {
-		t.Errorf("expected 1 item after concurrent marks, got %d", s.Size())
+	if len(s.items) != 1 {
+		t.Errorf("expected 1 item after concurrent marks, got %d", len(s.items))
 	}
 }
