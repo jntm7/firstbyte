@@ -1,7 +1,10 @@
 package main
 
 import (
+	"flag"
+	"html/template"
 	"log"
+	"os"
 	"time"
 
 	"firstbyte/config"
@@ -12,6 +15,11 @@ import (
 )
 
 func main() {
+	// parse flags
+	dryRun := flag.Bool("dry-run", false, "Render the digest to stdout without sending")
+	testMode := flag.Bool("test", false, "Send a test message to verify credentials")
+	flag.Parse()
+
 	log.SetFlags(0)
 
 	// load and validate configuration
@@ -32,16 +40,30 @@ func main() {
 		log.Fatalf("secrets: %v", err)
 	}
 
-	// open the seen-article store
-	seen, err := store.New(cfg.Store.Path)
-	if err != nil {
-		log.Fatalf("store: %v", err)
-	}
-	defer func() {
-		if err := seen.Save(); err != nil {
-			log.Printf("store save: %v", err)
+	// --test mode: send test message and exit
+	if *testMode {
+		log.Println("Sending test message...")
+		if err := notify.SendTestEmail(cfg.Email, *secrets); err != nil {
+			log.Fatalf("test: %v", err)
 		}
-	}()
+		log.Println("Test message sent.")
+		return
+	}
+
+	// open the seen-article store (skip in --dry-run)
+	var seen *store.Store
+	if !*dryRun {
+		s, err := store.New(cfg.Store.Path)
+		if err != nil {
+			log.Fatalf("store: %v", err)
+		}
+		seen = s
+		defer func() {
+			if err := seen.Save(); err != nil {
+				log.Printf("store save: %v", err)
+			}
+		}()
+	}
 
 	// fetch all feeds concurrently
 	log.Println("Fetching feeds...")
@@ -58,12 +80,17 @@ func main() {
 	}
 
 	// filter pipeline: remove seen → top N per source
-	fresh := filter.RemoveSeen(articles, seen)
+	fresh := articles
+	if seen != nil {
+		fresh = filter.RemoveSeen(articles, seen)
+	}
 	result := filter.TopNPerSourceMap(fresh, limits)
 
 	// mark kept articles as seen
-	for _, a := range result {
-		seen.Mark(a.Link)
+	if seen != nil {
+		for _, a := range result {
+			seen.Mark(a.Link)
+		}
 	}
 
 	if len(result) == 0 {
@@ -79,6 +106,19 @@ func main() {
 	data := notify.DigestData{
 		Date:     date,
 		Articles: groups,
+	}
+
+	// --dry-run mode: render to stdout instead of sending
+	if *dryRun {
+		tmplPath := "template/email.html"
+		tmpl, err := template.ParseFiles(tmplPath)
+		if err != nil {
+			log.Fatalf("template: %v", err)
+		}
+		if err := tmpl.Execute(os.Stdout, data); err != nil {
+			log.Fatalf("template: %v", err)
+		}
+		return
 	}
 
 	// send notifications
