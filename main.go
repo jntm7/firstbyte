@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"html/template"
-	"log"
 	"os"
+	"strings"
 	"time"
 
 	"firstbyte/config"
 	"firstbyte/feed"
 	"firstbyte/filter"
+	"firstbyte/logger"
 	"firstbyte/notify"
 	"firstbyte/store"
 )
@@ -18,35 +19,43 @@ func main() {
 	// parse flags
 	dryRun := flag.Bool("dry-run", false, "Render the digest to stdout without sending")
 	testMode := flag.Bool("test", false, "Send a test message to verify credentials")
+	verbose := flag.Bool("verbose", false, "Enable debug-level logging")
+	logFormat := flag.String("log-format", "text", "Log format: text or json")
 	flag.Parse()
 
-	log.SetFlags(0)
+	// initialize logger
+	level := logger.LevelInfo
+	if *verbose {
+		level = logger.LevelDebug
+	}
+	log := logger.New(level, strings.ToLower(*logFormat) == "json")
+	logger.Default = log
 
 	// load and validate configuration
 	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		log.Fatal("config: %v", err)
 	}
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("config: %v", err)
+		log.Fatal("config: %v", err)
 	}
 
 	// load secrets from .env or environment
 	secrets, err := config.LoadSecrets(".env")
 	if err != nil {
-		log.Fatalf("secrets: %v", err)
+		log.Fatal("secrets: %v", err)
 	}
 	if err := secrets.Validate(cfg.Notifications); err != nil {
-		log.Fatalf("secrets: %v", err)
+		log.Fatal("secrets: %v", err)
 	}
 
 	// --test mode: send test message and exit
 	if *testMode {
-		log.Println("Sending test message...")
+		log.Info("Sending test message...")
 		if err := notify.SendTestEmail(cfg.Email, *secrets); err != nil {
-			log.Fatalf("test: %v", err)
+			log.Fatal("test: %v", err)
 		}
-		log.Println("Test message sent.")
+		log.Info("Test message sent.")
 		return
 	}
 
@@ -55,23 +64,23 @@ func main() {
 	if !*dryRun {
 		s, err := store.New(cfg.Store.Path)
 		if err != nil {
-			log.Fatalf("store: %v", err)
+			log.Fatal("store: %v", err)
 		}
 		seen = s
 		defer func() {
 			if err := seen.Save(); err != nil {
-				log.Printf("store save: %v", err)
+				log.Warn("store save: %v", err)
 			}
 		}()
 	}
 
 	// fetch all feeds concurrently
-	log.Println("Fetching feeds...")
+	log.Info("Fetching feeds...")
 	articles, errs := feed.FetchAll(cfg.Sources)
 	for _, e := range errs {
-		log.Println("warning:", e)
+		log.Warn("warning: %v", e)
 	}
-	log.Printf("Fetched %d articles from %d sources", len(articles), len(cfg.Sources))
+	log.Info("Fetched %d articles from %d sources", len(articles), len(cfg.Sources))
 
 	// build per-source limits from config
 	limits := make(map[string]int)
@@ -79,11 +88,13 @@ func main() {
 		limits[s.Name] = s.MaxArticles
 	}
 
-	// filter pipeline: remove seen → top N per source
-	fresh := articles
+	// filter pipeline: keywords → max age → remove seen → deduplicate → top N per source
+	fresh := filter.FilterByKeywords(articles, cfg.Filter.AllowList, cfg.Filter.BlockList)
+	fresh = filter.FilterByMaxAge(fresh, cfg.Filter.MaxAgeDays)
 	if seen != nil {
-		fresh = filter.RemoveSeen(articles, seen)
+		fresh = filter.RemoveSeen(fresh, seen)
 	}
+	fresh = filter.Deduplicate(fresh)
 	result := filter.TopNPerSourceMap(fresh, limits)
 
 	// mark kept articles as seen
@@ -94,11 +105,11 @@ func main() {
 	}
 
 	if len(result) == 0 {
-		log.Println("No new articles today.")
+		log.Info("No new articles today.")
 		return
 	}
 
-	log.Printf("Digest: %d articles across sources\n", len(result))
+	log.Info("Digest: %d articles across sources", len(result))
 
 	// group articles by source for templates
 	groups := notify.GroupArticles(result)
@@ -113,10 +124,10 @@ func main() {
 		tmplPath := "template/email.html"
 		tmpl, err := template.ParseFiles(tmplPath)
 		if err != nil {
-			log.Fatalf("template: %v", err)
+			log.Fatal("template: %v", err)
 		}
 		if err := tmpl.Execute(os.Stdout, data); err != nil {
-			log.Fatalf("template: %v", err)
+			log.Fatal("template: %v", err)
 		}
 		return
 	}
@@ -125,11 +136,11 @@ func main() {
 	for _, ch := range cfg.Notifications {
 		switch ch {
 		case "email":
-			log.Println("Sending email...")
+			log.Info("Sending email...")
 			if err := notify.SendEmail(cfg.Email, *secrets, data, "template"); err != nil {
-				log.Printf("email: %v", err)
+				log.Error("email: %v", err)
 			} else {
-				log.Println("Email sent.")
+				log.Info("Email sent.")
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package filter
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -71,5 +72,78 @@ func TopNPerSourceMap(articles []Article, limits map[string]int) []Article {
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Published.After(result[j].Published)
 	})
+	return result
+}
+
+// FilterByKeywords removes articles based on global allowlist and blocklist.
+// If allowlist is non-empty, an article is kept only if its title or description
+// contains at least one allowlist term (case-insensitive).
+// If blocklist is non-empty, an article is dropped if its title or description
+// contains any blocklist term (case-insensitive).
+// Filtering order: allowlist first, then blocklist.
+func FilterByKeywords(articles []Article, allowlist, blocklist []string) []Article {
+	if len(allowlist) == 0 && len(blocklist) == 0 {
+		return articles
+	}
+
+	var result []Article
+	for _, a := range articles {
+		if len(allowlist) > 0 && !matchesAny(a.Title, a.Description, allowlist) {
+			continue
+		}
+		if len(blocklist) > 0 && matchesAny(a.Title, a.Description, blocklist) {
+			continue
+		}
+		result = append(result, a)
+	}
+	return result
+}
+
+// Deduplicate removes articles with duplicate titles across sources.
+// The first occurrence of a given title is kept; subsequent duplicates are dropped.
+// Comparison is case-insensitive with trimmed whitespace.
+func Deduplicate(articles []Article) []Article {
+	seen := make(map[string]bool)
+	var result []Article
+	for _, a := range articles {
+		key := normalizeTitle(a.Title)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, a)
+	}
+	return result
+}
+
+// matchesAny checks if any keyword appears in the combined title and description.
+func matchesAny(title, desc string, keywords []string) bool {
+	text := strings.ToLower(title + " " + desc)
+	for _, k := range keywords {
+		if strings.Contains(text, strings.ToLower(k)) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeTitle lowercases and trims whitespace for dedup comparison.
+func normalizeTitle(title string) string {
+	return strings.ToLower(strings.TrimSpace(title))
+}
+
+// FilterByMaxAge drops articles older than maxAgeDays days.
+// A value of 0 or less means no filtering.
+func FilterByMaxAge(articles []Article, maxAgeDays int) []Article {
+	if maxAgeDays <= 0 {
+		return articles
+	}
+	cutoff := time.Now().AddDate(0, 0, -maxAgeDays)
+	var result []Article
+	for _, a := range articles {
+		if a.Published.After(cutoff) {
+			result = append(result, a)
+		}
+	}
 	return result
 }

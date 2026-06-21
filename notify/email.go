@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/smtp"
 	"path/filepath"
+	"strings"
 
 	"firstbyte/config"
 	"firstbyte/filter"
@@ -74,7 +75,7 @@ func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, 
 	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 
-	if err := smtp.SendMail(addr, auth, cfg.From, []string{cfg.To}, msg); err != nil {
+	if err := smtp.SendMail(addr, auth, cfg.From, []string(cfg.To), msg); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
 
@@ -93,7 +94,7 @@ func SendTestEmail(cfg config.EmailConfig, secrets config.Secrets) error {
 	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 
-	if err := smtp.SendMail(addr, auth, cfg.From, []string{cfg.To}, msg); err != nil {
+	if err := smtp.SendMail(addr, auth, cfg.From, []string(cfg.To), msg); err != nil {
 		return fmt.Errorf("test email: %w", err)
 	}
 
@@ -101,11 +102,11 @@ func SendTestEmail(cfg config.EmailConfig, secrets config.Secrets) error {
 }
 
 // buildEmailMessage constructs a raw MIME email with HTML body.
-func buildEmailMessage(from, to, subject string, htmlBody []byte) []byte {
+func buildEmailMessage(from string, to []string, subject string, htmlBody []byte) []byte {
 	var buf bytes.Buffer
 
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	buf.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(to, ", ")))
 	buf.WriteString(fmt.Sprintf("Subject: FirstByte — %s\r\n", subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=\"UTF-8\"\r\n")

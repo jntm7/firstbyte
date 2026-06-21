@@ -1,5 +1,8 @@
 # FirstByte — Example Configuration
 # Copy this file to config.yaml and edit to suit your feeds.
+#
+# All settings can also be overridden via environment variables.
+# See README or config.go for the full list of supported vars.
 
 sources:
   - name: Hacker News
@@ -39,6 +42,16 @@ sources:
 # Schedule is configured externally (cron, Docker, GitHub Actions).
 # Example: "0 8 * * *" for daily at 8 AM.
 
+# Global keyword and age filters (optional)
+# filter:
+#   allowlist:                 # Only keep articles matching these terms
+#     - Apple
+#     - AI
+#   blocklist:                 # Drop articles matching these terms
+#     - sponsored
+#     - press release
+#   max_age_days: 3            # Skip articles older than this (0 = no limit)
+
 # Notification channels (currently only email is supported)
 notifications:
   - email
@@ -48,7 +61,9 @@ email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
   from: digest@example.com
-  to: you@example.com
+  to:
+    - you@example.com
+    # - team@example.com      # Add more recipients as needed
 
 # Path to the seen-article store (prevents duplicate articles across runs)
 store:
