@@ -17,6 +17,12 @@ Edit **config.yaml** — add your RSS sources and email settings.
 
 Edit **.env** — set `SMTP_USER` (Gmail address) and `SMTP_PASSWORD` (16-char App Password).
 
+All config values can also be overridden via environment variables:
+
+```bash
+MAX_AGE_DAYS=3 EMAIL_TO=me@example.com ./firstbyte
+```
+
 Run:
 
 ```bash
@@ -38,6 +44,12 @@ On the server:
 ```bash
 cd /opt/firstbyte && ./firstbyte
 echo '0 8 * * * cd /opt/firstbyte && ./firstbyte' | crontab -
+```
+
+Override any setting at runtime without editing config.yaml:
+
+```bash
+MAX_AGE_DAYS=3 EMAIL_TO=me@example.com ./firstbyte
 ```
 
 ## Default Sources
