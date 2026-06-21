@@ -4,10 +4,24 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// StringSlice accepts a single string or a list of strings in YAML.
+type StringSlice []string
+
+// UnmarshalYAML supports both "to: user@example.com" and "to: [a, b]" formats.
+func (s *StringSlice) UnmarshalYAML(value *yaml.Node) error {
+	var single string
+	if err := value.Decode(&single); err == nil {
+		*s = StringSlice{single}
+		return nil
+	}
+	return value.Decode((*[]string)(s))
+}
 
 // Source represents a single RSS feed to fetch.
 type Source struct {
@@ -18,10 +32,10 @@ type Source struct {
 
 // EmailConfig holds SMTP settings for email delivery.
 type EmailConfig struct {
-	SMTPHost string `yaml:"smtp_host"`
-	SMTPPort int    `yaml:"smtp_port"`
-	From     string `yaml:"from"`
-	To       string `yaml:"to"`
+	SMTPHost string      `yaml:"smtp_host"`
+	SMTPPort int         `yaml:"smtp_port"`
+	From     string      `yaml:"from"`
+	To       StringSlice `yaml:"to"`
 }
 
 // StoreConfig holds settings for the seen-article store.
@@ -29,12 +43,20 @@ type StoreConfig struct {
 	Path string `yaml:"path"`
 }
 
+// FilterConfig holds global keyword and age-based filter settings.
+type FilterConfig struct {
+	AllowList  []string `yaml:"allowlist"`
+	BlockList  []string `yaml:"blocklist"`
+	MaxAgeDays int      `yaml:"max_age_days"`
+}
+
 // Config is the top-level configuration loaded from config.yaml.
 type Config struct {
-	Sources       []Source    `yaml:"sources"`
-	Notifications []string    `yaml:"notifications"`
-	Email         EmailConfig `yaml:"email"`
-	Store         StoreConfig `yaml:"store"`
+	Sources       []Source     `yaml:"sources"`
+	Filter        FilterConfig `yaml:"filter"`
+	Notifications []string     `yaml:"notifications"`
+	Email         EmailConfig  `yaml:"email"`
+	Store         StoreConfig  `yaml:"store"`
 }
 
 // Secrets holds credentials loaded from environment variables.
@@ -64,6 +86,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.Store.Path == "" {
 		cfg.Store.Path = "./seen.json"
 	}
+
+	// apply environment variable overrides
+	overrideFromEnv(&cfg)
 
 	return &cfg, nil
 }
@@ -109,6 +134,54 @@ func loadEnvFile(path string) error {
 		os.Setenv(key, value)
 	}
 	return scanner.Err()
+}
+
+// overrideFromEnv applies environment variable overrides to the config.
+// Env vars take precedence over values in the YAML file.
+// Supported vars: MAX_AGE_DAYS, SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO,
+// STORE_PATH, FILTER_ALLOWLIST, FILTER_BLOCKLIST.
+func overrideFromEnv(cfg *Config) {
+	if v := os.Getenv("MAX_AGE_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Filter.MaxAgeDays = n
+		}
+	}
+	if v := os.Getenv("SMTP_HOST"); v != "" {
+		cfg.Email.SMTPHost = v
+	}
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Email.SMTPPort = n
+		}
+	}
+	if v := os.Getenv("EMAIL_FROM"); v != "" {
+		cfg.Email.From = v
+	}
+	if v := os.Getenv("EMAIL_TO"); v != "" {
+		cfg.Email.To = splitEnvList(v)
+	}
+	if v := os.Getenv("STORE_PATH"); v != "" {
+		cfg.Store.Path = v
+	}
+	if v := os.Getenv("FILTER_ALLOWLIST"); v != "" {
+		cfg.Filter.AllowList = splitEnvList(v)
+	}
+	if v := os.Getenv("FILTER_BLOCKLIST"); v != "" {
+		cfg.Filter.BlockList = splitEnvList(v)
+	}
+}
+
+// splitEnvList splits a comma-separated env var value into a string slice.
+// Trims whitespace from each element. Returns nil for empty strings.
+func splitEnvList(v string) []string {
+	var result []string
+	for _, item := range strings.Split(v, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 // Validate checks that all required config fields are present.

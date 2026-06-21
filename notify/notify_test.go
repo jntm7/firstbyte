@@ -45,7 +45,7 @@ func TestGroupArticles(t *testing.T) {
 
 func TestBuildEmailMessage(t *testing.T) {
 	html := []byte("<h1>Hello</h1>")
-	msg := buildEmailMessage("from@test.com", "to@test.com", "June 17, 2026", html)
+	msg := buildEmailMessage("from@test.com", []string{"to@test.com"}, "June 17, 2026", html)
 
 	s := string(msg)
 
@@ -55,7 +55,7 @@ func TestBuildEmailMessage(t *testing.T) {
 	if !strings.Contains(s, "To: to@test.com") {
 		t.Error("missing To header")
 	}
-	if !strings.Contains(s, "Subject: FirstByte Digest — June 17, 2026") {
+	if !strings.Contains(s, "Subject: FirstByte — June 17, 2026") {
 		t.Error("missing Subject header")
 	}
 	if !strings.Contains(s, "Content-Type: text/html") {
@@ -64,4 +64,25 @@ func TestBuildEmailMessage(t *testing.T) {
 	if !strings.Contains(s, "<h1>Hello</h1>") {
 		t.Error("missing HTML body")
 	}
+}
+
+func TestBuildEmailMessageMultipleRecipients(t *testing.T) {
+	html := []byte("<p>test</p>")
+	msg := buildEmailMessage("from@test.com", []string{"a@test.com", "b@test.com"}, "Subject", html)
+
+	s := string(msg)
+
+	if !strings.Contains(s, "To: a@test.com, b@test.com") {
+		t.Errorf("expected both recipients in To header, got %q", extractHeader(s, "To:"))
+	}
+}
+
+func extractHeader(msg, header string) string {
+	lines := strings.Split(msg, "\r\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, header) {
+			return line
+		}
+	}
+	return ""
 }

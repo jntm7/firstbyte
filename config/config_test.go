@@ -184,6 +184,95 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
+func TestLoadConfigWithFilter(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+
+filter:
+  allowlist:
+    - Apple
+    - AI
+  blocklist:
+    - sponsored
+    - press release
+
+notifications:
+  - email
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  from: test@test.com
+  to: test@test.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Filter.AllowList) != 2 {
+		t.Fatalf("expected 2 allowlist terms, got %d", len(cfg.Filter.AllowList))
+	}
+	if cfg.Filter.AllowList[0] != "Apple" {
+		t.Errorf("expected allowlist[0]='Apple', got %q", cfg.Filter.AllowList[0])
+	}
+	if cfg.Filter.AllowList[1] != "AI" {
+		t.Errorf("expected allowlist[1]='AI', got %q", cfg.Filter.AllowList[1])
+	}
+
+	if len(cfg.Filter.BlockList) != 2 {
+		t.Fatalf("expected 2 blocklist terms, got %d", len(cfg.Filter.BlockList))
+	}
+	if cfg.Filter.BlockList[1] != "press release" {
+		t.Errorf("expected blocklist[1]='press release', got %q", cfg.Filter.BlockList[1])
+	}
+}
+
+func TestLoadConfigFilterDefaults(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	// no filter section — should get empty defaults
+	minimal := `
+sources:
+  - name: Test Feed
+    url: https://example.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: localhost
+  smtp_port: 25
+  from: test@test.com
+  to: test@test.com
+`
+	if err := os.WriteFile(configPath, []byte(minimal), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Filter.AllowList) != 0 {
+		t.Errorf("expected empty allowlist, got %v", cfg.Filter.AllowList)
+	}
+	if len(cfg.Filter.BlockList) != 0 {
+		t.Errorf("expected empty blocklist, got %v", cfg.Filter.BlockList)
+	}
+}
+
 func TestLoadSecrets(t *testing.T) {
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -248,5 +337,224 @@ func TestSecretsValidate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestLoadConfigWithMaxAge(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+
+filter:
+  max_age_days: 3
+
+notifications:
+  - email
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  from: test@test.com
+  to: test@test.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if cfg.Filter.MaxAgeDays != 3 {
+		t.Errorf("expected MaxAgeDays=3, got %d", cfg.Filter.MaxAgeDays)
+	}
+}
+
+func TestLoadConfigWithMultiRecipient(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  from: digest@example.com
+  to:
+    - me@example.com
+    - team@example.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Email.To) != 2 {
+		t.Fatalf("expected 2 recipients, got %d", len(cfg.Email.To))
+	}
+	if cfg.Email.To[0] != "me@example.com" {
+		t.Errorf("expected first recipient 'me@example.com', got %q", cfg.Email.To[0])
+	}
+	if cfg.Email.To[1] != "team@example.com" {
+		t.Errorf("expected second recipient 'team@example.com', got %q", cfg.Email.To[1])
+	}
+}
+
+func TestStringSliceSingleValue(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Test
+    url: https://example.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: localhost
+  smtp_port: 25
+  from: from@test.com
+  to: single@test.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Email.To) != 1 {
+		t.Fatalf("expected 1 recipient, got %d", len(cfg.Email.To))
+	}
+	if cfg.Email.To[0] != "single@test.com" {
+		t.Errorf("expected 'single@test.com', got %q", cfg.Email.To[0])
+	}
+}
+
+func TestEnvOverrideMaxAge(t *testing.T) {
+	// set env var
+	t.Setenv("MAX_AGE_DAYS", "7")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Test
+    url: https://example.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: localhost
+  smtp_port: 25
+  from: f@t.com
+  to: t@t.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if cfg.Filter.MaxAgeDays != 7 {
+		t.Errorf("expected MaxAgeDays=7 from env, got %d", cfg.Filter.MaxAgeDays)
+	}
+}
+
+func TestEnvOverrideEmailTo(t *testing.T) {
+	t.Setenv("EMAIL_TO", "a@test.com,b@test.com")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Test
+    url: https://example.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: localhost
+  smtp_port: 25
+  from: f@t.com
+  to: old@test.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Email.To) != 2 {
+		t.Fatalf("expected 2 recipients from env, got %d", len(cfg.Email.To))
+	}
+	if cfg.Email.To[0] != "a@test.com" {
+		t.Errorf("expected first recipient 'a@test.com', got %q", cfg.Email.To[0])
+	}
+}
+
+func TestEnvOverrideBlocklist(t *testing.T) {
+	t.Setenv("FILTER_BLOCKLIST", "sponsored,press release,ad")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	yamlContent := `
+sources:
+  - name: Test
+    url: https://example.com/rss
+
+notifications:
+  - email
+
+email:
+  smtp_host: localhost
+  smtp_port: 25
+  from: f@t.com
+  to: t@t.com
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if len(cfg.Filter.BlockList) != 3 {
+		t.Fatalf("expected 3 blocklist items from env, got %d", len(cfg.Filter.BlockList))
+	}
+	if cfg.Filter.BlockList[1] != "press release" {
+		t.Errorf("expected 'press release', got %q", cfg.Filter.BlockList[1])
 	}
 }
