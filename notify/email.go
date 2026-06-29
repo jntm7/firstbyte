@@ -70,7 +70,7 @@ func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, 
 		return err
 	}
 
-	msg := buildEmailMessage(cfg.From, cfg.To, data.Date, body)
+	msg := buildEmailMessage(cfg.From, cfg.To, "Daily Tech Digest", body)
 
 	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
