@@ -171,8 +171,6 @@ func TestDeduplicateNoDupes(t *testing.T) {
 	}
 }
 
-
-
 func TestFilterByMaxAge(t *testing.T) {
 	articles := []Article{
 		makeArticle("https://a.com/1", "Today's article", "src", 0),

@@ -239,6 +239,182 @@ func TestFetchAllEmptySources(t *testing.T) {
 	}
 }
 
+func TestFetchOneJSONFeed(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/feed+json")
+		w.Write([]byte(`{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "JSON Feed",
+  "items": [
+    {
+      "id": "1",
+      "url": "https://example.com/json/1",
+      "title": "JSON Article",
+      "content_text": "A text-based description of the article",
+      "date_published": "2026-07-01T12:00:00Z"
+    },
+    {
+      "id": "2",
+      "url": "https://example.com/json/2",
+      "title": "Second JSON Article",
+      "content_html": "<p>HTML description here</p>",
+      "date_modified": "2026-07-02T08:00:00Z"
+    }
+  ]
+}`))
+	}))
+	defer ts.Close()
+
+	articles, err := FetchOne(config.Source{Name: "JSONTest", URL: ts.URL})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 2 {
+		t.Fatalf("expected 2 articles, got %d", len(articles))
+	}
+
+	a := articles[0]
+	if a.Title != "JSON Article" {
+		t.Errorf("expected 'JSON Article', got %q", a.Title)
+	}
+	if a.Link != "https://example.com/json/1" {
+		t.Errorf("expected link, got %q", a.Link)
+	}
+	if a.Source != "JSONTest" {
+		t.Errorf("expected source 'JSONTest', got %q", a.Source)
+	}
+	if a.Description != "A text-based description of the article" {
+		t.Errorf("expected description, got %q", a.Description)
+	}
+
+	a2 := articles[1]
+	if a2.Title != "Second JSON Article" {
+		t.Errorf("expected 'Second JSON Article', got %q", a2.Title)
+	}
+	if a2.Description != "HTML description here" {
+		t.Errorf("expected stripped HTML description, got %q", a2.Description)
+	}
+}
+
+func TestFetchOneJSONFeedFallbacks(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/feed+json")
+		w.Write([]byte(`{
+  "version": "https://jsonfeed.org/version/1",
+  "title": "Fallback Feed",
+  "items": [
+    {
+      "id": "tag:example.com,2026:fallback",
+      "title": "Uses ID as Link",
+      "summary": "Short",
+      "date_published": "2026-06-15T10:00:00Z"
+    },
+    {
+      "id": "no-link-2",
+      "title": "External URL Fallback",
+      "external_url": "https://example.com/ext",
+      "summary": "This description is long enough to keep"
+    }
+  ]
+}`))
+	}))
+	defer ts.Close()
+
+	articles, err := FetchOne(config.Source{Name: "Fallback", URL: ts.URL})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 2 {
+		t.Fatalf("expected 2 articles, got %d", len(articles))
+	}
+
+	a := articles[0]
+	if a.Link != "tag:example.com,2026:fallback" {
+		t.Errorf("expected ID as fallback link, got %q", a.Link)
+	}
+	if a.Description != "" {
+		t.Errorf("expected empty description for short summary, got %q", a.Description)
+	}
+
+	a2 := articles[1]
+	if a2.Link != "https://example.com/ext" {
+		t.Errorf("expected external_url as link, got %q", a2.Link)
+	}
+	if a2.Description != "This description is long enough to keep" {
+		t.Errorf("expected summary as description, got %q", a2.Description)
+	}
+}
+
+func TestFetchOneJSONFeedInvalid(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"not": "a feed", "version": "1.0"}`))
+	}))
+	defer ts.Close()
+
+	_, err := FetchOne(config.Source{Name: "Invalid", URL: ts.URL})
+	if err == nil {
+		t.Error("expected error for invalid JSON Feed, got nil")
+	}
+}
+
+func TestParseJSONFeedEmptyItems(t *testing.T) {
+	articles := parseJSONFeed([]byte(`{"version":"https://jsonfeed.org/version/1.1","title":"Empty","items":[]}`), "Src")
+	if len(articles) != 0 {
+		t.Errorf("expected 0 articles for empty items, got %d", len(articles))
+	}
+}
+
+func TestParseJSONFeedWrongVersion(t *testing.T) {
+	articles := parseJSONFeed([]byte(`{"version":"https://someother.site/feed.json","title":"Wrong","items":[{"id":"1","title":"Item"}]}`), "Src")
+	if len(articles) != 0 {
+		t.Errorf("expected 0 articles for wrong version, got %d", len(articles))
+	}
+}
+
+func TestParseJSONFeedNullItems(t *testing.T) {
+	articles := parseJSONFeed([]byte(`{"version":"https://jsonfeed.org/version/1.1","title":"Null","items":null}`), "Src")
+	if len(articles) != 0 {
+		t.Errorf("expected 0 articles for null items, got %d", len(articles))
+	}
+}
+
+func TestFetchOneJSONFeedHTMLEntities(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/feed+json")
+		w.Write([]byte(`{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Entities",
+  "items": [
+    {
+      "id": "1",
+      "url": "https://example.com/entity",
+      "title": "Bronze &amp; Iron Age",
+      "content_text": "Study of the bronze &amp; iron ages spans centuries of research",
+      "date_published": "2026-01-01T00:00:00Z"
+    }
+  ]
+}`))
+	}))
+	defer ts.Close()
+
+	articles, err := FetchOne(config.Source{Name: "Entities", URL: ts.URL})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 1 {
+		t.Fatalf("expected 1 article, got %d", len(articles))
+	}
+
+	a := articles[0]
+	if a.Title != "Bronze & Iron Age" {
+		t.Errorf("expected title with decoded entity, got %q", a.Title)
+	}
+	if a.Description != "Study of the bronze & iron ages spans centuries of research" {
+		t.Errorf("expected decoded description, got %q", a.Description)
+	}
+}
+
 func TestCleanDesc(t *testing.T) {
 	tests := []struct {
 		in   string

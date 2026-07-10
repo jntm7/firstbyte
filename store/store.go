@@ -69,5 +69,3 @@ func (s *Store) Save() error {
 
 	return nil
 }
-
-

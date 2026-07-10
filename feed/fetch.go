@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -108,11 +109,14 @@ func FetchOne(src config.Source) ([]filter.Article, error) {
 		return nil, fmt.Errorf("read body: %w", err)
 	}
 
-	// try RSS first, then Atom
+	// try RSS first, then Atom, then JSON Feed
 	if items := parseRSS(body, src.Name); len(items) > 0 {
 		return items, nil
 	}
 	if items := parseAtom(body, src.Name); len(items) > 0 {
+		return items, nil
+	}
+	if items := parseJSONFeed(body, src.Name); len(items) > 0 {
 		return items, nil
 	}
 
@@ -199,6 +203,76 @@ func bestAtomLink(links []atomLink) string {
 		return links[0].Href
 	}
 	return ""
+}
+
+// JSON Feed structures (https://www.jsonfeed.org/version/1.1/)
+
+type jsonFeed struct {
+	Version string     `json:"version"`
+	Title   string     `json:"title"`
+	Items   []jsonItem `json:"items"`
+}
+
+type jsonItem struct {
+	ID            string `json:"id"`
+	URL           string `json:"url"`
+	ExternalURL   string `json:"external_url"`
+	Title         string `json:"title"`
+	ContentText   string `json:"content_text"`
+	ContentHTML   string `json:"content_html"`
+	Summary       string `json:"summary"`
+	DatePublished string `json:"date_published"`
+	DateModified  string `json:"date_modified"`
+}
+
+// parseJSONFeed parses a JSON Feed (v1.0 or v1.1) and returns articles.
+func parseJSONFeed(body []byte, source string) []filter.Article {
+	var feed jsonFeed
+	if err := json.Unmarshal(body, &feed); err != nil {
+		return nil
+	}
+	if !strings.HasPrefix(feed.Version, "https://jsonfeed.org/version/") {
+		return nil
+	}
+	if len(feed.Items) == 0 {
+		return nil
+	}
+
+	var articles []filter.Article
+	for _, item := range feed.Items {
+		link := item.URL
+		if link == "" {
+			link = item.ExternalURL
+		}
+		if link == "" {
+			link = item.ID
+		}
+		if link == "" {
+			continue
+		}
+
+		desc := item.ContentText
+		if desc == "" {
+			desc = item.ContentHTML
+		}
+		if desc == "" {
+			desc = item.Summary
+		}
+
+		dateStr := item.DatePublished
+		if dateStr == "" {
+			dateStr = item.DateModified
+		}
+
+		articles = append(articles, filter.Article{
+			Title:       html.UnescapeString(item.Title),
+			Link:        link,
+			Published:   parseDate(dateStr),
+			Description: cleanDesc(desc),
+			Source:      source,
+		})
+	}
+	return articles
 }
 
 // Date parsing
