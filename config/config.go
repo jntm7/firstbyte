@@ -29,6 +29,23 @@ type Source struct {
 	Name        string `yaml:"name"`
 	URL         string `yaml:"url"`
 	MaxArticles int    `yaml:"max_articles"`
+	Enabled     *bool  `yaml:"enabled,omitempty"` // nil means enabled
+}
+
+// IsEnabled reports whether the source should be fetched (default true).
+func (s Source) IsEnabled() bool {
+	return s.Enabled == nil || *s.Enabled
+}
+
+// EnabledSources returns only the sources that are switched on.
+func (c *Config) EnabledSources() []Source {
+	var result []Source
+	for _, s := range c.Sources {
+		if s.IsEnabled() {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 // EmailConfig holds SMTP settings for email delivery.
@@ -234,6 +251,9 @@ func (c *Config) Validate() error {
 		if s.URL == "" {
 			return fmt.Errorf("source %d (%s): url is required", i, s.Name)
 		}
+	}
+	if len(c.EnabledSources()) == 0 {
+		return fmt.Errorf("at least one source must be enabled")
 	}
 
 	if len(c.Notifications) == 0 {

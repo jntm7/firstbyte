@@ -532,3 +532,39 @@ func TestLoadConfigMaxAge(t *testing.T) {
 		})
 	}
 }
+
+func TestEnabledSources(t *testing.T) {
+	on, off := true, false
+	tests := []struct {
+		name    string
+		sources []Source
+		want    []string
+		wantErr bool
+	}{
+		{"nil defaults to enabled", []Source{{Name: "A", URL: "u"}}, []string{"A"}, false},
+		{"explicit true and false", []Source{{Name: "A", URL: "u", Enabled: &on}, {Name: "B", URL: "u", Enabled: &off}}, []string{"A"}, false},
+		{"all disabled fails validation", []Source{{Name: "A", URL: "u", Enabled: &off}}, nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Sources: tt.sources, Notifications: []string{"email"}}
+
+			// check validation outcome
+			if err := cfg.Validate(); (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+
+			// check which sources survive
+			got := cfg.EnabledSources()
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d enabled sources, got %d", len(tt.want), len(got))
+			}
+			for i, name := range tt.want {
+				if got[i].Name != name {
+					t.Errorf("expected source %q at %d, got %q", name, i, got[i].Name)
+				}
+			}
+		})
+	}
+}

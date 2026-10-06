@@ -17,6 +17,7 @@ sources:
   - name: OpenAI Blog
     url: https://openai.com/blog/rss.xml
     max_articles: 2
+    enabled: true            # Optional; set false to skip a source without deleting it
   - name: Engadget
     url: https://www.engadget.com/rss.xml
     max_articles: 2

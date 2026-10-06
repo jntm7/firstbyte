@@ -74,17 +74,18 @@ func main() {
 		}()
 	}
 
-	// fetch all feeds concurrently
+	// fetch all enabled feeds concurrently
+	sources := cfg.EnabledSources()
 	log.Info("Fetching feeds...")
-	articles, errs := feed.FetchAll(cfg.Sources)
+	articles, errs := feed.FetchAll(sources)
 	for _, e := range errs {
 		log.Warn("warning: %v", e)
 	}
-	log.Info("Fetched %d articles from %d sources", len(articles), len(cfg.Sources))
+	log.Info("Fetched %d articles from %d sources", len(articles), len(sources))
 
 	// build per-source limits from config
 	limits := make(map[string]int)
-	for _, s := range cfg.Sources {
+	for _, s := range sources {
 		limits[s.Name] = s.MaxArticles
 	}
 
