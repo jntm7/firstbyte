@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -340,41 +341,6 @@ func TestSecretsValidate(t *testing.T) {
 	}
 }
 
-func TestLoadConfigWithMaxAge(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.yaml")
-
-	yamlContent := `
-sources:
-  - name: Hacker News
-    url: https://news.ycombinator.com/rss
-
-filter:
-  max_age_days: 3
-
-notifications:
-  - email
-
-email:
-  smtp_host: smtp.gmail.com
-  smtp_port: 587
-  from: test@test.com
-  to: test@test.com
-`
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("failed to write test config: %v", err)
-	}
-
-	cfg, err := LoadConfig(configPath)
-	if err != nil {
-		t.Fatalf("LoadConfig() error: %v", err)
-	}
-
-	if cfg.Filter.MaxAgeDays != 3 {
-		t.Errorf("expected MaxAgeDays=3, got %d", cfg.Filter.MaxAgeDays)
-	}
-}
-
 func TestLoadConfigWithMultiRecipient(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
@@ -450,41 +416,6 @@ email:
 	}
 }
 
-func TestEnvOverrideMaxAge(t *testing.T) {
-	// set env var
-	t.Setenv("MAX_AGE_DAYS", "7")
-
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.yaml")
-
-	yamlContent := `
-sources:
-  - name: Test
-    url: https://example.com/rss
-
-notifications:
-  - email
-
-email:
-  smtp_host: localhost
-  smtp_port: 25
-  from: f@t.com
-  to: t@t.com
-`
-	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("failed to write test config: %v", err)
-	}
-
-	cfg, err := LoadConfig(configPath)
-	if err != nil {
-		t.Fatalf("LoadConfig() error: %v", err)
-	}
-
-	if cfg.Filter.MaxAgeDays != 7 {
-		t.Errorf("expected MaxAgeDays=7 from env, got %d", cfg.Filter.MaxAgeDays)
-	}
-}
-
 func TestEnvOverrideEmailTo(t *testing.T) {
 	t.Setenv("EMAIL_TO", "a@test.com,b@test.com")
 
@@ -556,5 +487,48 @@ email:
 	}
 	if cfg.Filter.BlockList[1] != "press release" {
 		t.Errorf("expected 'press release', got %q", cfg.Filter.BlockList[1])
+	}
+}
+
+func TestLoadConfigMaxAge(t *testing.T) {
+	tests := []struct {
+		name    string
+		filter  string            // YAML filter block (may be empty)
+		env     map[string]string // env overrides to set
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "default is 24h", want: 24 * time.Hour},
+		{name: "duration string", filter: "filter:\n  max_age: 12h\n", want: 12 * time.Hour},
+		{name: "zero disables", filter: "filter:\n  max_age: 0\n", want: 0},
+		{name: "legacy days", filter: "filter:\n  max_age_days: 3\n", want: 72 * time.Hour},
+		{name: "max_age wins over days", filter: "filter:\n  max_age: 6h\n  max_age_days: 3\n", want: 6 * time.Hour},
+		{name: "invalid duration", filter: "filter:\n  max_age: soon\n", wantErr: true},
+		{name: "env MAX_AGE", filter: "filter:\n  max_age: 12h\n", env: map[string]string{"MAX_AGE": "48h"}, want: 48 * time.Hour},
+		{name: "env MAX_AGE_DAYS overrides yaml", filter: "filter:\n  max_age: 12h\n", env: map[string]string{"MAX_AGE_DAYS": "7"}, want: 7 * 24 * time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// apply env overrides for this case only
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			// write a minimal config with the case's filter block
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			yamlContent := "sources:\n  - name: Test\n    url: https://example.com/rss\n" + tt.filter
+			if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to write test config: %v", err)
+			}
+
+			cfg, err := LoadConfig(configPath)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("LoadConfig() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if err == nil && cfg.Filter.MaxAgeDuration != tt.want {
+				t.Errorf("expected MaxAgeDuration=%v, got %v", tt.want, cfg.Filter.MaxAgeDuration)
+			}
+		})
 	}
 }

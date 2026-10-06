@@ -90,7 +90,7 @@ func main() {
 
 	// filter pipeline: keywords → max age → remove seen → deduplicate → top N per source
 	fresh := filter.FilterByKeywords(articles, cfg.Filter.AllowList, cfg.Filter.BlockList)
-	fresh = filter.FilterByMaxAge(fresh, cfg.Filter.MaxAgeDays)
+	fresh = filter.FilterByMaxAge(fresh, cfg.Filter.MaxAgeDuration)
 	if seen != nil {
 		fresh = filter.RemoveSeen(fresh, seen)
 	}

@@ -132,13 +132,13 @@ func normalizeTitle(title string) string {
 	return strings.ToLower(strings.TrimSpace(title))
 }
 
-// FilterByMaxAge drops articles older than maxAgeDays days.
+// FilterByMaxAge drops articles published more than maxAge ago.
 // A value of 0 or less means no filtering.
-func FilterByMaxAge(articles []Article, maxAgeDays int) []Article {
-	if maxAgeDays <= 0 {
+func FilterByMaxAge(articles []Article, maxAge time.Duration) []Article {
+	if maxAge <= 0 {
 		return articles
 	}
-	cutoff := time.Now().AddDate(0, 0, -maxAgeDays)
+	cutoff := time.Now().Add(-maxAge)
 	var result []Article
 	for _, a := range articles {
 		if a.Published.After(cutoff) {

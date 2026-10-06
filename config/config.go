@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -43,11 +44,16 @@ type StoreConfig struct {
 	Path string `yaml:"path"`
 }
 
+// defaultMaxAge is the article age window used when no max_age is configured.
+const defaultMaxAge = 24 * time.Hour
+
 // FilterConfig holds global keyword and age-based filter settings.
 type FilterConfig struct {
-	AllowList  []string `yaml:"allowlist"`
-	BlockList  []string `yaml:"blocklist"`
-	MaxAgeDays int      `yaml:"max_age_days"`
+	AllowList      []string      `yaml:"allowlist"`
+	BlockList      []string      `yaml:"blocklist"`
+	MaxAge         string        `yaml:"max_age"`      // Go duration, e.g. "24h"; "0" disables
+	MaxAgeDays     int           `yaml:"max_age_days"` // deprecated: use max_age
+	MaxAgeDuration time.Duration `yaml:"-"`            // resolved from MaxAge / MaxAgeDays
 }
 
 // Config is the top-level configuration loaded from config.yaml.
@@ -90,7 +96,34 @@ func LoadConfig(path string) (*Config, error) {
 	// apply environment variable overrides
 	overrideFromEnv(&cfg)
 
+	// resolve the article age window
+	maxAge, err := resolveMaxAge(cfg.Filter)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Filter.MaxAgeDuration = maxAge
+
 	return &cfg, nil
+}
+
+// resolveMaxAge picks the age window: max_age wins, then the deprecated
+// max_age_days, then the 24h default. Zero or negative means no limit.
+func resolveMaxAge(f FilterConfig) (time.Duration, error) {
+	// prefer the duration string when set
+	if f.MaxAge != "" {
+		d, err := time.ParseDuration(f.MaxAge)
+		if err != nil {
+			return 0, fmt.Errorf("parse filter.max_age %q: %w", f.MaxAge, err)
+		}
+		return d, nil
+	}
+
+	// fall back to legacy whole-day setting
+	if f.MaxAgeDays > 0 {
+		return time.Duration(f.MaxAgeDays) * 24 * time.Hour, nil
+	}
+
+	return defaultMaxAge, nil
 }
 
 // LoadSecrets reads secrets from environment variables.
@@ -138,13 +171,18 @@ func loadEnvFile(path string) error {
 
 // overrideFromEnv applies environment variable overrides to the config.
 // Env vars take precedence over values in the YAML file.
-// Supported vars: MAX_AGE_DAYS, SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO,
+// Supported vars: MAX_AGE, MAX_AGE_DAYS (deprecated), SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO,
 // STORE_PATH, FILTER_ALLOWLIST, FILTER_BLOCKLIST.
 func overrideFromEnv(cfg *Config) {
+	// legacy day count; clears max_age so the env value takes precedence
 	if v := os.Getenv("MAX_AGE_DAYS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.Filter.MaxAgeDays = n
+			cfg.Filter.MaxAge = ""
 		}
+	}
+	if v := os.Getenv("MAX_AGE"); v != "" {
+		cfg.Filter.MaxAge = v
 	}
 	if v := os.Getenv("SMTP_HOST"); v != "" {
 		cfg.Email.SMTPHost = v
