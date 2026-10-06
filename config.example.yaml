@@ -50,7 +50,7 @@ sources:
 #   blocklist:                 # Drop articles matching these terms
 #     - sponsored
 #     - press release
-#   max_age_days: 3            # Skip articles older than this (0 = no limit)
+#   max_age: 24h               # Skip articles older than this (default 24h, "0" = no limit)
 
 # Notification channels (currently only email is supported)
 notifications:

@@ -20,7 +20,7 @@ Edit **.env** — set `SMTP_USER` (Gmail address) and `SMTP_PASSWORD` (16-char A
 All config values can also be overridden via environment variables:
 
 ```bash
-MAX_AGE_DAYS=3 EMAIL_TO=me@example.com ./firstbyte
+MAX_AGE=48h EMAIL_TO=me@example.com ./firstbyte
 ```
 
 Run:
@@ -49,7 +49,7 @@ echo '0 8 * * * cd /opt/firstbyte && ./firstbyte' | crontab -
 Override any setting at runtime without editing config.yaml:
 
 ```bash
-MAX_AGE_DAYS=3 EMAIL_TO=me@example.com ./firstbyte
+MAX_AGE=48h EMAIL_TO=me@example.com ./firstbyte
 ```
 
 ## Default Sources

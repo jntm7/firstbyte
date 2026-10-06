@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -172,41 +173,31 @@ func TestDeduplicateNoDupes(t *testing.T) {
 }
 
 func TestFilterByMaxAge(t *testing.T) {
-	articles := []Article{
-		makeArticle("https://a.com/1", "Today's article", "src", 0),
-		makeArticle("https://a.com/2", "Two days old", "src", 2),
-		makeArticle("https://a.com/3", "Five days old", "src", 5),
-		makeArticle("https://a.com/4", "One day old", "src", 1),
+	// build articles at fixed hour offsets from now
+	hoursAgo := func(h int) Article {
+		return Article{Title: fmt.Sprintf("%dh old", h), Published: time.Now().Add(-time.Duration(h) * time.Hour)}
+	}
+	articles := []Article{hoursAgo(1), hoursAgo(10), hoursAgo(30), hoursAgo(120)}
+
+	tests := []struct {
+		name   string
+		maxAge time.Duration
+		want   int
+	}{
+		{"last 24 hours", 24 * time.Hour, 2},
+		{"last 12 hours", 12 * time.Hour, 2},
+		{"last 2 hours", 2 * time.Hour, 1},
+		{"last 3 days", 72 * time.Hour, 3},
+		{"zero means no limit", 0, 4},
+		{"negative means no limit", -time.Hour, 4},
 	}
 
-	t.Run("keep last 3 days", func(t *testing.T) {
-		result := FilterByMaxAge(articles, 3)
-		if len(result) != 3 {
-			t.Fatalf("expected 3 articles, got %d", len(result))
-		}
-		if result[0].Title != "Today's article" {
-			t.Errorf("expected newest first, got %q", result[0].Title)
-		}
-	})
-
-	t.Run("no limit", func(t *testing.T) {
-		result := FilterByMaxAge(articles, 0)
-		if len(result) != 4 {
-			t.Fatalf("expected 4 articles with no limit, got %d", len(result))
-		}
-	})
-
-	t.Run("negative value", func(t *testing.T) {
-		result := FilterByMaxAge(articles, -1)
-		if len(result) != 4 {
-			t.Fatalf("expected 4 articles with negative limit, got %d", len(result))
-		}
-	})
-
-	t.Run("all filtered out", func(t *testing.T) {
-		result := FilterByMaxAge(articles, 0)
-		if len(result) != 4 {
-			t.Fatalf("expected 4 articles with limit 0, got %d", len(result))
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FilterByMaxAge(articles, tt.maxAge)
+			if len(result) != tt.want {
+				t.Fatalf("expected %d articles, got %d", tt.want, len(result))
+			}
+		})
+	}
 }
