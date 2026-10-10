@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"strconv"
@@ -58,7 +59,7 @@ type EmailConfig struct {
 
 // StoreConfig holds settings for the seen-article store.
 type StoreConfig struct {
-	Path string `yaml:"path"`
+	Path string `yaml:"path,omitempty"`
 }
 
 // defaultMaxAge is the article age window used when no max_age is configured.
@@ -66,20 +67,20 @@ const defaultMaxAge = 24 * time.Hour
 
 // FilterConfig holds global keyword and age-based filter settings.
 type FilterConfig struct {
-	AllowList      []string      `yaml:"allowlist"`
-	BlockList      []string      `yaml:"blocklist"`
-	MaxAge         string        `yaml:"max_age"`      // Go duration, e.g. "24h"; "0" disables
-	MaxAgeDays     int           `yaml:"max_age_days"` // deprecated: use max_age
-	MaxAgeDuration time.Duration `yaml:"-"`            // resolved from MaxAge / MaxAgeDays
+	AllowList      []string      `yaml:"allowlist,omitempty"`
+	BlockList      []string      `yaml:"blocklist,omitempty"`
+	MaxAge         string        `yaml:"max_age,omitempty"`      // Go duration, e.g. "24h"; "0" disables
+	MaxAgeDays     int           `yaml:"max_age_days,omitempty"` // deprecated: use max_age
+	MaxAgeDuration time.Duration `yaml:"-"`                      // resolved from MaxAge / MaxAgeDays
 }
 
 // Config is the top-level configuration loaded from config.yaml.
 type Config struct {
 	Sources       []Source     `yaml:"sources"`
-	Filter        FilterConfig `yaml:"filter"`
+	Filter        FilterConfig `yaml:"filter,omitempty"`
 	Notifications []string     `yaml:"notifications"`
 	Email         EmailConfig  `yaml:"email"`
-	Store         StoreConfig  `yaml:"store"`
+	Store         StoreConfig  `yaml:"store,omitempty"`
 }
 
 // Secrets holds credentials loaded from environment variables.
@@ -88,8 +89,9 @@ type Secrets struct {
 	SMTPPassword string
 }
 
-// LoadConfig reads and parses the YAML config file at the given path.
-func LoadConfig(path string) (*Config, error) {
+// LoadRaw reads the YAML config file exactly as written, without defaults
+// or environment overrides. Used by the setup wizard to edit the file.
+func LoadRaw(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
@@ -99,6 +101,35 @@ func LoadConfig(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	return &cfg, nil
+}
+
+// Save writes the config to path as YAML, overwriting any existing file.
+func Save(cfg *Config, path string) error {
+	// encode with 2-space indent to match config.example.yaml
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(cfg); err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("write config file: %w", err)
+	}
+	return nil
+}
+
+// LoadConfig reads and parses the YAML config file at the given path.
+func LoadConfig(path string) (*Config, error) {
+	// read the file as written
+	cfgPtr, err := LoadRaw(path)
+	if err != nil {
+		return nil, err
+	}
+	cfg := *cfgPtr
 
 	// set defaults
 	for i := range cfg.Sources {
