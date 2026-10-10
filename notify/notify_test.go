@@ -11,38 +11,43 @@ import (
 )
 
 func TestGroupArticles(t *testing.T) {
+	// articles arrive newest-first across sources, not in config order
 	articles := []filter.Article{
-		{Title: "A1", Source: "Hacker News", Link: "https://h.com/1"},
-		{Title: "B1", Source: "Lobsters", Link: "https://l.com/1"},
-		{Title: "A2", Source: "Hacker News", Link: "https://h.com/2"},
-		{Title: "C1", Source: "GitHub", Link: "https://g.com/1"},
+		{Title: "G1", Source: "GitHub"},
+		{Title: "H1", Source: "Hacker News"},
+		{Title: "X1", Source: "Unlisted"},
+		{Title: "H2", Source: "Hacker News"},
+		{Title: "L1", Source: "Lobsters"},
+	}
+	order := []string{"Hacker News", "Ars Technica", "Lobsters", "GitHub"}
+
+	tests := []struct {
+		name  string
+		order []string
+		want  []string // expected source order
+	}{
+		{"config order, empty sources skipped, unlisted last", order, []string{"Hacker News", "Lobsters", "GitHub", "Unlisted"}},
+		{"no order falls back to first appearance", nil, []string{"GitHub", "Hacker News", "Unlisted", "Lobsters"}},
 	}
 
-	groups := GroupArticles(articles)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			groups := GroupArticles(articles, tt.order)
 
-	if len(groups) != 3 {
-		t.Fatalf("expected 3 groups, got %d", len(groups))
-	}
-
-	// verify Hacker News is first (first appearance)
-	if groups[0].Source != "Hacker News" {
-		t.Errorf("expected Hacker News first, got %q", groups[0].Source)
-	}
-	if len(groups[0].Items) != 2 {
-		t.Errorf("expected 2 HN articles, got %d", len(groups[0].Items))
-	}
-
-	// Lobsters second
-	if groups[1].Source != "Lobsters" {
-		t.Errorf("expected Lobsters second, got %q", groups[1].Source)
-	}
-	if len(groups[1].Items) != 1 {
-		t.Errorf("expected 1 Lobsters article, got %d", len(groups[1].Items))
+			var got []string
+			for _, g := range groups {
+				got = append(got, g.Source)
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("source order = %v, want %v", got, tt.want)
+			}
+		})
 	}
 
-	// GitHub third
-	if groups[2].Source != "GitHub" {
-		t.Errorf("expected GitHub third, got %q", groups[2].Source)
+	// articles keep their original order within a group
+	groups := GroupArticles(articles, order)
+	if hn := groups[0].Items; len(hn) != 2 || hn[0].Title != "H1" || hn[1].Title != "H2" {
+		t.Errorf("Hacker News items = %+v, want H1 then H2", hn)
 	}
 }
 
