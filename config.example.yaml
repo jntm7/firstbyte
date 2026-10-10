@@ -5,40 +5,63 @@
 # See README or config.go for the full list of supported vars.
 
 sources:
+  # Each source: name (shown in the email), url (RSS, Atom or JSON Feed),
+  # max_articles (default 5), enabled (default true; false skips it without deleting it)
   - name: Hacker News
     url: https://news.ycombinator.com/rss
-    max_articles: 5
-  - name: GitHub Blog
-    url: https://github.blog/feed/
+    max_articles: 3
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+    max_articles: 2
+  - name: BetaKit
+    url: https://betakit.com/feed/
     max_articles: 2
   - name: Lobsters
     url: https://lobste.rs/rss
     max_articles: 2
-  - name: OpenAI Blog
-    url: https://openai.com/blog/rss.xml
-    max_articles: 2
-    enabled: true            # Optional; set false to skip a source without deleting it
+  - name: Hackaday
+    url: https://hackaday.com/blog/feed/
+    max_articles: 1
   - name: Engadget
     url: https://www.engadget.com/rss.xml
-    max_articles: 2
+    max_articles: 1
   - name: Wired
     url: https://www.wired.com/feed/rss
-    max_articles: 2
+    max_articles: 1
   - name: The Verge
     url: https://www.theverge.com/rss/index.xml
-    max_articles: 2
-  - name: Ars Technica
-    url: https://feeds.arstechnica.com/arstechnica/index
-    max_articles: 2
+    max_articles: 1
   - name: TNW
     url: https://thenextweb.com/feed
-    max_articles: 2
+    max_articles: 1
   - name: Electrek
     url: https://electrek.co/feed
-    max_articles: 2
+    max_articles: 1
   - name: TechCrunch
     url: https://techcrunch.com/feed/
-    max_articles: 2
+    max_articles: 1
+  - name: The Register
+    url: https://www.theregister.com/headlines.atom
+    max_articles: 1
+  - name: 404 Media
+    url: https://www.404media.co/rss/
+    max_articles: 1
+  - name: IEEE Spectrum
+    url: https://spectrum.ieee.org/feeds/feed.rss
+    max_articles: 1
+  - name: Daring Fireball
+    url: https://daringfireball.net/feeds/main
+    max_articles: 1
+  - name: MIT Tech Review
+    url: https://www.technologyreview.com/feed/
+    max_articles: 1
+  - name: GitHub
+    url: https://github.blog/feed/
+    max_articles: 1
+  - name: OpenAI
+    url: https://openai.com/news/rss.xml
+    max_articles: 1
+
 
 # Schedule is configured externally (cron, Docker, GitHub Actions).
 # Example: "0 8 * * *" for daily at 8 AM.

@@ -1,5 +1,6 @@
 # Project instructions for LLM agents
 AGENTS.md
+.claude/
 
 # Binary output
 feedforward
