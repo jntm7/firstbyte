@@ -568,3 +568,37 @@ func TestEnabledSources(t *testing.T) {
 		})
 	}
 }
+
+func TestSaveRoundTrip(t *testing.T) {
+	off := false
+	original := &Config{
+		Sources: []Source{
+			{Name: "A", URL: "https://a.com/rss", MaxArticles: 3},
+			{Name: "B", URL: "https://b.com/rss", MaxArticles: 2, Enabled: &off},
+		},
+		Filter:        FilterConfig{MaxAge: "12h", BlockList: []string{"sponsored"}},
+		Notifications: []string{"email"},
+		Email:         EmailConfig{SMTPHost: "smtp.example.com", SMTPPort: 587, From: "f@x.com", To: StringSlice{"a@x.com", "b@x.com"}},
+	}
+
+	// save then read back
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Save(original, path); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+	got, err := LoadRaw(path)
+	if err != nil {
+		t.Fatalf("LoadRaw() error: %v", err)
+	}
+
+	// compare the fields the wizard edits
+	if len(got.Sources) != 2 || !got.Sources[0].IsEnabled() || got.Sources[1].IsEnabled() {
+		t.Errorf("sources not preserved: %+v", got.Sources)
+	}
+	if got.Filter.MaxAge != "12h" || len(got.Filter.BlockList) != 1 {
+		t.Errorf("filter not preserved: %+v", got.Filter)
+	}
+	if got.Email.SMTPPort != 587 || len(got.Email.To) != 2 {
+		t.Errorf("email not preserved: %+v", got.Email)
+	}
+}
