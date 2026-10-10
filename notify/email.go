@@ -24,25 +24,28 @@ type ArticleGroup struct {
 	Items  []filter.Article
 }
 
-// GroupArticles groups a flat list of articles by their Source field.
-func GroupArticles(articles []filter.Article) []ArticleGroup {
+// GroupArticles groups articles by Source, ordered by sourceOrder (the config order).
+// Sources with no articles are left out; any source not in sourceOrder goes last,
+// in order of first appearance. Articles keep their order within each group.
+func GroupArticles(articles []filter.Article, sourceOrder []string) []ArticleGroup {
+	// bucket articles by source, remembering first-appearance order
 	groups := make(map[string][]filter.Article)
+	var appearance []string
 	for _, a := range articles {
+		if _, ok := groups[a.Source]; !ok {
+			appearance = append(appearance, a.Source)
+		}
 		groups[a.Source] = append(groups[a.Source], a)
 	}
 
-	// preserve source order from first appearance
-	seen := make(map[string]bool)
+	// emit configured sources first, then anything unlisted
 	var result []ArticleGroup
-	for _, a := range articles {
-		if seen[a.Source] {
-			continue
+	added := make(map[string]bool)
+	for _, name := range append(append([]string{}, sourceOrder...), appearance...) {
+		if items, ok := groups[name]; ok && !added[name] {
+			added[name] = true
+			result = append(result, ArticleGroup{Source: name, Items: items})
 		}
-		seen[a.Source] = true
-		result = append(result, ArticleGroup{
-			Source: a.Source,
-			Items:  groups[a.Source],
-		})
 	}
 	return result
 }

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"html/template"
 	"os"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"firstbyte/filter"
 	"firstbyte/logger"
 	"firstbyte/notify"
+	"firstbyte/setup"
 	"firstbyte/store"
 )
 
@@ -19,8 +22,19 @@ func main() {
 	// parse flags
 	dryRun := flag.Bool("dry-run", false, "Render the digest to stdout without sending")
 	testMode := flag.Bool("test", false, "Send a test message to verify credentials")
+	initMode := flag.Bool("init", false, "Launch the interactive setup wizard to create or edit config.yaml")
 	verbose := flag.Bool("verbose", false, "Enable debug-level logging")
 	logFormat := flag.String("log-format", "text", "Log format: text or json")
+
+	// custom --help output: short intro, then the standard flag list
+	flag.Usage = func() {
+		out := flag.CommandLine.Output()
+		fmt.Fprintln(out, "FirstByte: fetch your RSS feeds and email a daily digest.")
+		fmt.Fprintln(out, "\nUsage: firstbyte [flags]")
+		fmt.Fprintln(out, "\nReads config.yaml and .env from the current directory. Run with --init to create config.yaml.")
+		fmt.Fprintln(out, "\nFlags:")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	// initialize logger
@@ -30,6 +44,19 @@ func main() {
 	}
 	log := logger.New(level, strings.ToLower(*logFormat) == "json")
 	logger.Default = log
+
+	// --init mode: run the setup wizard and exit (before loading config, which may not exist yet)
+	if *initMode {
+		err := setup.Run("config.yaml", "config.example.yaml")
+		if errors.Is(err, setup.ErrCancelled) {
+			log.Info("Setup cancelled; config.yaml unchanged.")
+			return
+		}
+		if err != nil {
+			log.Fatal("init: %v", err)
+		}
+		return
+	}
 
 	// load and validate configuration
 	cfg, err := config.LoadConfig("config.yaml")
@@ -83,10 +110,12 @@ func main() {
 	}
 	log.Info("Fetched %d articles from %d sources", len(articles), len(sources))
 
-	// build per-source limits from config
+	// build per-source limits and the display order from config
 	limits := make(map[string]int)
+	var sourceOrder []string
 	for _, s := range sources {
 		limits[s.Name] = s.MaxArticles
+		sourceOrder = append(sourceOrder, s.Name)
 	}
 
 	// filter pipeline: keywords → max age → remove seen → deduplicate → top N per source
@@ -113,7 +142,7 @@ func main() {
 	log.Info("Digest: %d articles across sources", len(result))
 
 	// group articles by source for templates
-	groups := notify.GroupArticles(result)
+	groups := notify.GroupArticles(result, sourceOrder)
 	date := time.Now().Format("Monday, January 2, 2006")
 	data := notify.DigestData{
 		Date:     date,
