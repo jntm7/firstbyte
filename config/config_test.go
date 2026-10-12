@@ -602,3 +602,40 @@ func TestSaveRoundTrip(t *testing.T) {
 		t.Errorf("email not preserved: %+v", got.Email)
 	}
 }
+
+func TestLoadConfigFromName(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string            // YAML email block
+		env   map[string]string // env overrides to set
+		want  string
+	}{
+		{name: "defaults to FirstByte", email: "email:\n  from: a@b.com\n", want: "FirstByte"},
+		{name: "set in yaml", email: "email:\n  from: a@b.com\n  from_name: Morning Bytes\n", want: "Morning Bytes"},
+		{name: "env override", email: "email:\n  from: a@b.com\n  from_name: Morning Bytes\n", env: map[string]string{"EMAIL_FROM_NAME": "Env Name"}, want: "Env Name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// apply env overrides for this case only
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			// write a minimal config with the case's email block
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			yamlContent := "sources:\n  - name: Test\n    url: https://example.com/rss\n" + tt.email
+			if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to write test config: %v", err)
+			}
+
+			cfg, err := LoadConfig(configPath)
+			if err != nil {
+				t.Fatalf("LoadConfig() error: %v", err)
+			}
+			if cfg.Email.FromName != tt.want {
+				t.Errorf("FromName = %q, want %q", cfg.Email.FromName, tt.want)
+			}
+		})
+	}
+}

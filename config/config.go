@@ -54,6 +54,7 @@ type EmailConfig struct {
 	SMTPHost string      `yaml:"smtp_host"`
 	SMTPPort int         `yaml:"smtp_port"`
 	From     string      `yaml:"from"`
+	FromName string      `yaml:"from_name,omitempty"` // sender display name shown in inboxes
 	To       StringSlice `yaml:"to"`
 }
 
@@ -140,6 +141,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.Store.Path == "" {
 		cfg.Store.Path = "./seen.json"
 	}
+	if cfg.Email.FromName == "" {
+		cfg.Email.FromName = "FirstByte"
+	}
 
 	// apply environment variable overrides
 	overrideFromEnv(&cfg)
@@ -219,7 +223,7 @@ func loadEnvFile(path string) error {
 
 // overrideFromEnv applies environment variable overrides to the config.
 // Env vars take precedence over values in the YAML file.
-// Supported vars: MAX_AGE, MAX_AGE_DAYS (deprecated), SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_TO,
+// Supported vars: MAX_AGE, MAX_AGE_DAYS (deprecated), SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_FROM_NAME, EMAIL_TO,
 // STORE_PATH, FILTER_ALLOWLIST, FILTER_BLOCKLIST.
 func overrideFromEnv(cfg *Config) {
 	// legacy day count; clears max_age so the env value takes precedence
@@ -242,6 +246,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EMAIL_FROM"); v != "" {
 		cfg.Email.From = v
+	}
+	if v := os.Getenv("EMAIL_FROM_NAME"); v != "" {
+		cfg.Email.FromName = v
 	}
 	if v := os.Getenv("EMAIL_TO"); v != "" {
 		cfg.Email.To = splitEnvList(v)

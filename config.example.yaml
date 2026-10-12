@@ -85,6 +85,7 @@ email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
   from: digest@example.com
+  # from_name: FirstByte     # Sender name shown in inboxes (default: FirstByte)
   to:
     - you@example.com
     # - team@example.com      # Add more recipients as needed
