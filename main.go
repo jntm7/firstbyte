@@ -127,13 +127,6 @@ func main() {
 	fresh = filter.Deduplicate(fresh)
 	result := filter.TopNPerSourceMap(fresh, limits)
 
-	// mark kept articles as seen
-	if seen != nil {
-		for _, a := range result {
-			seen.Mark(a.Link)
-		}
-	}
-
 	if len(result) == 0 {
 		log.Info("No new articles today.")
 		return
@@ -163,16 +156,36 @@ func main() {
 		return
 	}
 
-	// send notifications
+	// send notifications, tracking whether anyone received the digest
+	delivered := false
 	for _, ch := range cfg.Notifications {
 		switch ch {
 		case "email":
 			log.Info("Sending email...")
-			if err := notify.SendEmail(cfg.Email, *secrets, data, "template"); err != nil {
+			sent, err := notify.SendEmail(cfg.Email, *secrets, data, "template")
+			switch {
+			case err == nil:
+				log.Info("Email sent to %d recipient(s).", sent)
+			case sent > 0:
+				log.Warn("email: delivered to %d of %d recipients: %v", sent, len(cfg.Email.To), err)
+			default:
 				log.Error("email: %v", err)
-			} else {
-				log.Info("Email sent.")
+			}
+			if sent > 0 {
+				delivered = true
 			}
 		}
+	}
+
+	// nothing delivered: leave articles unseen so the next run retries them,
+	// and exit non-zero so cron / CI reports the failure
+	if !delivered {
+		log.Error("Digest was not delivered; articles will be retried on the next run.")
+		os.Exit(1)
+	}
+
+	// mark delivered articles as seen (written by the deferred seen.Save)
+	for _, a := range result {
+		seen.Mark(a.Link)
 	}
 }

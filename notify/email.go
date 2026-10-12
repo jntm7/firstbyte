@@ -70,18 +70,20 @@ func RenderEmail(data DigestData, templateDir string) ([]byte, error) {
 
 // SendEmail renders the HTML email template and sends it via SMTP,
 // one copy per recipient so nobody sees the other addresses.
-func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, templateDir string) error {
+// It returns how many recipients the email reached, plus any delivery errors.
+func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, templateDir string) (int, error) {
 	body, err := RenderEmail(data, templateDir)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// dated subject so each digest is its own message, e.g. "Tech News — Tue, Oct 6, 2026"
 	subject := "Tech News — " + data.Date
-	if err := sendEach(smtp.SendMail, cfg, secrets, subject, body); err != nil {
-		return fmt.Errorf("send email: %w", err)
+	sent, err := sendEach(smtp.SendMail, cfg, secrets, subject, body)
+	if err != nil {
+		return sent, fmt.Errorf("send email: %w", err)
 	}
-	return nil
+	return sent, nil
 }
 
 // SendTestEmail sends a simple test message to verify SMTP credentials.
@@ -91,7 +93,7 @@ func SendTestEmail(cfg config.EmailConfig, secrets config.Secrets) error {
 <p style="color:#495057;font-size:15px;">If you're reading this, SMTP is configured correctly.</p>
 </body></html>`)
 
-	if err := sendEach(smtp.SendMail, cfg, secrets, "FirstByte SMTP Test", body); err != nil {
+	if _, err := sendEach(smtp.SendMail, cfg, secrets, "FirstByte SMTP Test", body); err != nil {
 		return fmt.Errorf("test email: %w", err)
 	}
 	return nil
@@ -101,20 +103,24 @@ func SendTestEmail(cfg config.EmailConfig, secrets config.Secrets) error {
 type sendFunc func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
 
 // sendEach sends a separate copy of the message to each recipient.
-// A failure for one recipient doesn't stop the others; all failures are returned together.
-func sendEach(send sendFunc, cfg config.EmailConfig, secrets config.Secrets, subject string, body []byte) error {
+// A failure for one recipient doesn't stop the others; it returns how many
+// copies were delivered and all failures joined together.
+func sendEach(send sendFunc, cfg config.EmailConfig, secrets config.Secrets, subject string, body []byte) (int, error) {
 	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
 
+	sent := 0
 	var errs []error
 	for _, rcpt := range cfg.To {
 		// only this recipient appears in the To header and the SMTP envelope
 		msg := buildEmailMessage(cfg.FromName, cfg.From, rcpt, subject, body)
 		if err := send(addr, auth, cfg.From, []string{rcpt}, msg); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", rcpt, err))
+			continue
 		}
+		sent++
 	}
-	return errors.Join(errs...)
+	return sent, errors.Join(errs...)
 }
 
 // buildEmailMessage constructs a raw MIME email with HTML body for a single recipient.

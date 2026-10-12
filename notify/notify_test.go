@@ -110,8 +110,12 @@ func TestSendEachRecipientGetsOwnCopy(t *testing.T) {
 		return nil
 	}
 
-	if err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>")); err != nil {
+	sent, err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>"))
+	if err != nil {
 		t.Fatalf("sendEach() error: %v", err)
+	}
+	if sent != 3 {
+		t.Errorf("sent = %d, want 3", sent)
 	}
 
 	if len(calls) != 3 {
@@ -150,9 +154,13 @@ func TestSendEachContinuesAfterFailure(t *testing.T) {
 		return nil
 	}
 
-	err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>"))
+	sent, err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>"))
 	if err == nil || !strings.Contains(err.Error(), "bad@test.com") {
 		t.Fatalf("expected error naming bad@test.com, got %v", err)
+	}
+	// the caller uses this count to decide whether the digest was delivered at all
+	if sent != 1 {
+		t.Errorf("sent = %d, want 1 (only good@test.com)", sent)
 	}
 	if len(sentTo) != 2 || sentTo[1] != "good@test.com" {
 		t.Errorf("expected delivery to continue to good@test.com, sent to %v", sentTo)
