@@ -143,7 +143,8 @@ func main() {
 
 	// group articles by source for templates
 	groups := notify.GroupArticles(result, sourceOrder)
-	date := time.Now().Format("Monday, January 2, 2006")
+	// header date, e.g. "Tue, Oct 6, 2026"
+	date := time.Now().Format("Mon, Jan 2, 2006")
 	data := notify.DigestData{
 		Date:     date,
 		Articles: groups,
