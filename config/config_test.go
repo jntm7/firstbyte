@@ -115,6 +115,9 @@ func TestLoadConfigMissing(t *testing.T) {
 	}
 }
 
+// validEmail is a complete email block for tests that expect validation to pass.
+var validEmail = EmailConfig{SMTPHost: "smtp.example.com", SMTPPort: 587, From: "a@b.com", To: StringSlice{"c@d.com"}}
+
 func TestConfigValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -128,6 +131,7 @@ func TestConfigValidate(t *testing.T) {
 					{Name: "HN", URL: "https://example.com/rss"},
 				},
 				Notifications: []string{"email"},
+				Email:         validEmail,
 			},
 			wantErr: false,
 		},
@@ -173,6 +177,10 @@ func TestConfigValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{name: "email missing smtp_host", cfg: withEmail(func(e *EmailConfig) { e.SMTPHost = "" }), wantErr: true},
+		{name: "email bad smtp_port", cfg: withEmail(func(e *EmailConfig) { e.SMTPPort = 0 }), wantErr: true},
+		{name: "email missing from", cfg: withEmail(func(e *EmailConfig) { e.From = "" }), wantErr: true},
+		{name: "email with no recipients", cfg: withEmail(func(e *EmailConfig) { e.To = nil }), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -182,6 +190,17 @@ func TestConfigValidate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// withEmail returns a valid email config with one field changed by edit.
+func withEmail(edit func(*EmailConfig)) *Config {
+	e := validEmail
+	edit(&e)
+	return &Config{
+		Sources:       []Source{{Name: "HN", URL: "https://example.com/rss"}},
+		Notifications: []string{"email"},
+		Email:         e,
 	}
 }
 
@@ -548,7 +567,7 @@ func TestEnabledSources(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{Sources: tt.sources, Notifications: []string{"email"}}
+			cfg := &Config{Sources: tt.sources, Notifications: []string{"email"}, Email: validEmail}
 
 			// check validation outcome
 			if err := cfg.Validate(); (err != nil) != tt.wantErr {

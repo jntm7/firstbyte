@@ -297,12 +297,33 @@ func (c *Config) Validate() error {
 	if len(c.Notifications) == 0 {
 		return fmt.Errorf("at least one notification channel is required")
 	}
+	// each channel needs its own settings to deliver anything
 	for _, n := range c.Notifications {
-		if n != "email" {
+		switch n {
+		case "email":
+			if err := c.Email.validate(); err != nil {
+				return err
+			}
+		default:
 			return fmt.Errorf("unknown notification channel: %s (use email)", n)
 		}
 	}
 
+	return nil
+}
+
+// validate checks the settings needed to send email (credentials are checked by Secrets.Validate).
+func (e EmailConfig) validate() error {
+	switch {
+	case e.SMTPHost == "":
+		return fmt.Errorf("email.smtp_host is required")
+	case e.SMTPPort <= 0:
+		return fmt.Errorf("email.smtp_port must be a positive number")
+	case e.From == "":
+		return fmt.Errorf("email.from is required")
+	case len(e.To) == 0:
+		return fmt.Errorf("email.to needs at least one recipient")
+	}
 	return nil
 }
 
