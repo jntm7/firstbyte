@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"mime"
+	"net/mail"
 	"net/smtp"
 	"path/filepath"
 
@@ -74,7 +76,9 @@ func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, 
 		return err
 	}
 
-	if err := sendEach(smtp.SendMail, cfg, secrets, "Daily Tech Digest", body); err != nil {
+	// dated subject so each digest is its own message, e.g. "Tech News — Tue, Oct 6, 2026"
+	subject := "Tech News — " + data.Date
+	if err := sendEach(smtp.SendMail, cfg, secrets, subject, body); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
 	return nil
@@ -105,7 +109,7 @@ func sendEach(send sendFunc, cfg config.EmailConfig, secrets config.Secrets, sub
 	var errs []error
 	for _, rcpt := range cfg.To {
 		// only this recipient appears in the To header and the SMTP envelope
-		msg := buildEmailMessage(cfg.From, rcpt, subject, body)
+		msg := buildEmailMessage(cfg.FromName, cfg.From, rcpt, subject, body)
 		if err := send(addr, auth, cfg.From, []string{rcpt}, msg); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", rcpt, err))
 		}
@@ -114,12 +118,17 @@ func sendEach(send sendFunc, cfg config.EmailConfig, secrets config.Secrets, sub
 }
 
 // buildEmailMessage constructs a raw MIME email with HTML body for a single recipient.
-func buildEmailMessage(from, to string, subject string, htmlBody []byte) []byte {
+// fromName is the sender display name (e.g. "FirstByte"); it may be empty.
+func buildEmailMessage(fromName, from, to string, subject string, htmlBody []byte) []byte {
 	var buf bytes.Buffer
 
-	buf.WriteString(fmt.Sprintf("From: %s\r\n", from))
+	// "FirstByte <digest@example.com>"; mail.Address quotes/encodes the name as needed
+	sender := (&mail.Address{Name: fromName, Address: from}).String()
+
+	// headers must be ASCII, so encode non-ASCII subjects (e.g. the em dash) per RFC 2047
+	buf.WriteString(fmt.Sprintf("From: %s\r\n", sender))
 	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	buf.WriteString(fmt.Sprintf("Subject: FirstByte — %s\r\n", subject))
+	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", mime.QEncoding.Encode("UTF-8", subject)))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=\"UTF-8\"\r\n")
 	buf.WriteString("\r\n")

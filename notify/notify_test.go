@@ -2,6 +2,7 @@ package notify
 
 import (
 	"errors"
+	"mime"
 	"net/smtp"
 	"strings"
 	"testing"
@@ -53,24 +54,42 @@ func TestGroupArticles(t *testing.T) {
 
 func TestBuildEmailMessage(t *testing.T) {
 	html := []byte("<h1>Hello</h1>")
-	msg := buildEmailMessage("from@test.com", "to@test.com", "June 17, 2026", html)
+	msg := buildEmailMessage("FirstByte", "from@test.com", "to@test.com", "Tech News — Tue, Oct 6, 2026", html)
 
 	s := string(msg)
 
-	if !strings.Contains(s, "From: from@test.com") {
-		t.Error("missing From header")
+	if !strings.Contains(s, "From: \"FirstByte\" <from@test.com>") {
+		t.Errorf("missing From header with display name, got %q", extractHeader(s, "From:"))
 	}
 	if !strings.Contains(s, "To: to@test.com") {
 		t.Error("missing To header")
-	}
-	if !strings.Contains(s, "Subject: FirstByte — June 17, 2026") {
-		t.Error("missing Subject header")
 	}
 	if !strings.Contains(s, "Content-Type: text/html") {
 		t.Error("missing content type")
 	}
 	if !strings.Contains(s, "<h1>Hello</h1>") {
 		t.Error("missing HTML body")
+	}
+
+	// subject is RFC 2047 encoded because of the em dash; decode to check the text
+	raw := strings.TrimPrefix(extractHeader(s, "Subject:"), "Subject: ")
+	decoded, err := new(mime.WordDecoder).DecodeHeader(raw)
+	if err != nil {
+		t.Fatalf("decode subject: %v", err)
+	}
+	if decoded != "Tech News — Tue, Oct 6, 2026" {
+		t.Errorf("subject = %q, want %q", decoded, "Tech News — Tue, Oct 6, 2026")
+	}
+}
+
+func TestBuildEmailMessageWithoutFromName(t *testing.T) {
+	msg := string(buildEmailMessage("", "from@test.com", "to@test.com", "Plain subject", nil))
+
+	if !strings.Contains(msg, "From: <from@test.com>") {
+		t.Errorf("unexpected From header %q", extractHeader(msg, "From:"))
+	}
+	if !strings.Contains(msg, "Subject: Plain subject") {
+		t.Errorf("ASCII subject should be left as-is, got %q", extractHeader(msg, "Subject:"))
 	}
 }
 
