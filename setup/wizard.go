@@ -160,11 +160,8 @@ func addCustomSources(cfg *config.Config) error {
 func editFilter(cfg *config.Config) error {
 	f := &cfg.Filter
 
-	// show the effective default when nothing is set
-	maxAge := f.MaxAge
-	if maxAge == "" {
-		maxAge = "24h"
-	}
+	// prefill with the window currently in effect
+	maxAge := initialMaxAge(*f)
 	allow := strings.Join(f.AllowList, ", ")
 	block := strings.Join(f.BlockList, ", ")
 
@@ -187,6 +184,19 @@ func editFilter(cfg *config.Config) error {
 	f.AllowList = splitList(allow)
 	f.BlockList = splitList(block)
 	return nil
+}
+
+// initialMaxAge is the age window to prefill: max_age, else the legacy
+// max_age_days converted to hours, else the 24h default.
+func initialMaxAge(f config.FilterConfig) string {
+	switch {
+	case f.MaxAge != "":
+		return f.MaxAge
+	case f.MaxAgeDays > 0:
+		return fmt.Sprintf("%dh", f.MaxAgeDays*24)
+	default:
+		return "24h"
+	}
 }
 
 // editEmail edits SMTP and recipient settings (secrets stay in .env).

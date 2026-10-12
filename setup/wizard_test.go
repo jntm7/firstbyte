@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"firstbyte/config"
 )
 
 func TestValidators(t *testing.T) {
@@ -96,4 +98,24 @@ func TestLoadStartingConfig(t *testing.T) {
 		}
 	})
 
+}
+
+func TestInitialMaxAge(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter config.FilterConfig
+		want   string
+	}{
+		{"max_age wins", config.FilterConfig{MaxAge: "12h", MaxAgeDays: 3}, "12h"},
+		{"legacy days converted", config.FilterConfig{MaxAgeDays: 3}, "72h"},
+		{"nothing set uses default", config.FilterConfig{}, "24h"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := initialMaxAge(tt.filter); got != tt.want {
+				t.Errorf("initialMaxAge() = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
