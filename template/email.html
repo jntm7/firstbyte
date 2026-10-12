@@ -3,41 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FirstByte Digest — {{.Date}}</title>
+  <meta name="color-scheme" content="light">
+  <title>FirstByte · {{.Date}}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:24px 0;">
+<!-- Palette matches the site's light theme: page #f5efe6, line #d8cebe, heading #1a1a1a,
+     body #3b352d, muted #776c5c, accent #0f766e. Solid hex only (Outlook ignores rgba). -->
+<body style="margin:0;padding:0;background-color:#ece5da;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ece5da;padding:24px 12px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          <!-- Header -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#f5efe6;border:1px solid #d8cebe;border-radius:12px;overflow:hidden;">
+          <!-- Header: logo + name on the left, date on the right, faint teal tint -->
           <tr>
-            <td style="background-color:#1a1a2e;padding:32px 40px;">
-              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">FirstByte Digest</h1>
-              <p style="color:#a0a0b8;margin:8px 0 0;font-size:14px;">{{.Date}}</p>
+            <td style="background-color:#e7e8df;border-bottom:1px solid #d8cebe;padding:20px 28px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <!-- Logo built from HTML blocks (no image request) -->
+                        <td width="24" height="24" valign="middle" style="width:24px;height:24px;background-color:#1a1a1a;border-radius:6px;">
+                          <div style="padding-left:6px;">
+                            <div style="width:11px;height:2px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
+                            <div style="width:9px;height:2px;margin-top:3px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
+                            <div style="width:7px;height:2px;margin-top:3px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
+                          </div>
+                        </td>
+                        <td valign="middle" style="padding-left:10px;color:#1a1a1a;font-size:20px;font-weight:600;">FirstByte</td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td align="right" valign="middle" style="color:#776c5c;font-size:13px;white-space:nowrap;">{{.Date}}</td>
+                </tr>
+              </table>
             </td>
           </tr>
 
           <!-- Content -->
           <tr>
-            <td style="padding:32px 40px;">
+            <td style="padding:8px 28px 28px;">
               {{if .Articles}}
-              {{range .Articles}}
+              {{range $i, $group := .Articles}}
+              <!-- Divider between source groups (not before the first) -->
+              {{if $i}}<div style="border-top:1px solid #d8cebe;font-size:0;line-height:0;"></div>{{end}}
               <!-- Source heading -->
-              <h2 style="color:#1a1a2e;font-size:20px;font-weight:700;margin:24px 0 12px;padding-bottom:8px;border-bottom:2px solid #e9ecef;">
-                {{.Source}} <span style="color:#868e96;font-size:15px;font-weight:400;">({{len .Items}})</span>
-              </h2>
+              <h2 style="color:#1a1a1a;font-size:16px;font-weight:600;margin:24px 0 12px;">{{$group.Source}}</h2>
 
-              {{range .Items}}
+              {{range $group.Items}}
               <!-- Article -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
                 <tr>
                   <td>
-                    <a href="{{.Link}}" style="color:#228be6;text-decoration:none;font-size:18px;font-weight:600;line-height:1.4;">{{.Title}}</a>
+                    <a href="{{.Link}}" style="color:#1a1a1a;font-size:17px;font-weight:500;line-height:1.4;text-decoration:underline;text-decoration-color:#0f766e;text-underline-offset:3px;">{{.Title}}</a>
                     {{if .Description}}
-                    <p style="color:#495057;font-size:16px;line-height:1.5;margin:4px 0 0;">{{.Description}}</p>
+                    <p style="color:#3b352d;font-size:15px;line-height:1.5;margin:6px 0 0;">{{.Description}}</p>
                     {{end}}
-                    <p style="color:#868e96;font-size:13px;margin:6px 0 0;">{{.Published.Format "Jan 2, 2006"}}</p>
+                    <p style="color:#776c5c;font-size:13px;margin:6px 0 0;">{{.Published.Format "Jan 2, 2006"}}</p>
                   </td>
                 </tr>
               </table>
@@ -45,17 +66,15 @@
               {{end}}
               {{else}}
               <!-- Empty state -->
-              <p style="color:#868e96;font-size:16px;text-align:center;padding:32px 0;margin:0;">No articles today. Enjoy the quiet.</p>
+              <p style="color:#776c5c;font-size:16px;text-align:center;padding:32px 0;margin:0;">No articles today. Enjoy the quiet.</p>
               {{end}}
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="background-color:#f8f9fa;padding:20px 40px;border-top:1px solid #e9ecef;">
-              <p style="color:#868e96;font-size:12px;margin:0;text-align:center;">
-                Generated by FirstByte
-              </p>
+            <td style="border-top:1px solid #d8cebe;padding:18px 28px;">
+              <p style="color:#776c5c;font-size:12px;margin:0;text-align:center;">Generated by FirstByte</p>
             </td>
           </tr>
         </table>
