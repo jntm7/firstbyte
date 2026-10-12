@@ -2,11 +2,11 @@ package notify
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/smtp"
 	"path/filepath"
-	"strings"
 
 	"firstbyte/config"
 	"firstbyte/filter"
@@ -63,22 +63,17 @@ func RenderEmail(data DigestData, templateDir string) ([]byte, error) {
 	return body.Bytes(), nil
 }
 
-// SendEmail renders the HTML email template and sends it via SMTP.
+// SendEmail renders the HTML email template and sends it via SMTP,
+// one copy per recipient so nobody sees the other addresses.
 func SendEmail(cfg config.EmailConfig, secrets config.Secrets, data DigestData, templateDir string) error {
 	body, err := RenderEmail(data, templateDir)
 	if err != nil {
 		return err
 	}
 
-	msg := buildEmailMessage(cfg.From, cfg.To, "Daily Tech Digest", body)
-
-	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
-	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
-
-	if err := smtp.SendMail(addr, auth, cfg.From, []string(cfg.To), msg); err != nil {
+	if err := sendEach(smtp.SendMail, cfg, secrets, "Daily Tech Digest", body); err != nil {
 		return fmt.Errorf("send email: %w", err)
 	}
-
 	return nil
 }
 
@@ -89,24 +84,38 @@ func SendTestEmail(cfg config.EmailConfig, secrets config.Secrets) error {
 <p style="color:#495057;font-size:15px;">If you're reading this, SMTP is configured correctly.</p>
 </body></html>`)
 
-	msg := buildEmailMessage(cfg.From, cfg.To, "FirstByte SMTP Test", body)
-
-	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
-	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
-
-	if err := smtp.SendMail(addr, auth, cfg.From, []string(cfg.To), msg); err != nil {
+	if err := sendEach(smtp.SendMail, cfg, secrets, "FirstByte SMTP Test", body); err != nil {
 		return fmt.Errorf("test email: %w", err)
 	}
-
 	return nil
 }
 
-// buildEmailMessage constructs a raw MIME email with HTML body.
-func buildEmailMessage(from string, to []string, subject string, htmlBody []byte) []byte {
+// sendFunc matches smtp.SendMail so tests can swap in a fake sender.
+type sendFunc func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
+
+// sendEach sends a separate copy of the message to each recipient.
+// A failure for one recipient doesn't stop the others; all failures are returned together.
+func sendEach(send sendFunc, cfg config.EmailConfig, secrets config.Secrets, subject string, body []byte) error {
+	auth := smtp.PlainAuth("", secrets.SMTPUser, secrets.SMTPPassword, cfg.SMTPHost)
+	addr := fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
+
+	var errs []error
+	for _, rcpt := range cfg.To {
+		// only this recipient appears in the To header and the SMTP envelope
+		msg := buildEmailMessage(cfg.From, rcpt, subject, body)
+		if err := send(addr, auth, cfg.From, []string{rcpt}, msg); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", rcpt, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// buildEmailMessage constructs a raw MIME email with HTML body for a single recipient.
+func buildEmailMessage(from, to string, subject string, htmlBody []byte) []byte {
 	var buf bytes.Buffer
 
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(to, ", ")))
+	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
 	buf.WriteString(fmt.Sprintf("Subject: FirstByte — %s\r\n", subject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=\"UTF-8\"\r\n")

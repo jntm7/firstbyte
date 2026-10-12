@@ -1,9 +1,12 @@
 package notify
 
 import (
+	"errors"
+	"net/smtp"
 	"strings"
 	"testing"
 
+	"firstbyte/config"
 	"firstbyte/filter"
 )
 
@@ -45,7 +48,7 @@ func TestGroupArticles(t *testing.T) {
 
 func TestBuildEmailMessage(t *testing.T) {
 	html := []byte("<h1>Hello</h1>")
-	msg := buildEmailMessage("from@test.com", []string{"to@test.com"}, "June 17, 2026", html)
+	msg := buildEmailMessage("from@test.com", "to@test.com", "June 17, 2026", html)
 
 	s := string(msg)
 
@@ -66,14 +69,69 @@ func TestBuildEmailMessage(t *testing.T) {
 	}
 }
 
-func TestBuildEmailMessageMultipleRecipients(t *testing.T) {
-	html := []byte("<p>test</p>")
-	msg := buildEmailMessage("from@test.com", []string{"a@test.com", "b@test.com"}, "Subject", html)
+func TestSendEachRecipientGetsOwnCopy(t *testing.T) {
+	cfg := config.EmailConfig{
+		SMTPHost: "smtp.test", SMTPPort: 587, From: "from@test.com",
+		To: config.StringSlice{"a@test.com", "b@test.com", "c@test.com"},
+	}
 
-	s := string(msg)
+	// fake sender records each call instead of talking to a server
+	type call struct {
+		to  []string
+		msg string
+	}
+	var calls []call
+	fake := func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+		calls = append(calls, call{to, string(msg)})
+		return nil
+	}
 
-	if !strings.Contains(s, "To: a@test.com, b@test.com") {
-		t.Errorf("expected both recipients in To header, got %q", extractHeader(s, "To:"))
+	if err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>")); err != nil {
+		t.Fatalf("sendEach() error: %v", err)
+	}
+
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 sends, got %d", len(calls))
+	}
+	for i, want := range cfg.To {
+		c := calls[i]
+		// envelope and To header must contain only this recipient
+		if len(c.to) != 1 || c.to[0] != want {
+			t.Errorf("send %d: envelope recipients = %v, want [%s]", i, c.to, want)
+		}
+		if got := extractHeader(c.msg, "To:"); got != "To: "+want {
+			t.Errorf("send %d: header %q, want %q", i, got, "To: "+want)
+		}
+		for _, other := range cfg.To {
+			if other != want && strings.Contains(c.msg, other) {
+				t.Errorf("send %d: message for %s leaks %s", i, want, other)
+			}
+		}
+	}
+}
+
+func TestSendEachContinuesAfterFailure(t *testing.T) {
+	cfg := config.EmailConfig{
+		SMTPHost: "smtp.test", SMTPPort: 587, From: "from@test.com",
+		To: config.StringSlice{"bad@test.com", "good@test.com"},
+	}
+
+	// first recipient fails, second succeeds
+	var sentTo []string
+	fake := func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+		sentTo = append(sentTo, to[0])
+		if to[0] == "bad@test.com" {
+			return errors.New("mailbox unavailable")
+		}
+		return nil
+	}
+
+	err := sendEach(fake, cfg, config.Secrets{}, "Subject", []byte("<p>hi</p>"))
+	if err == nil || !strings.Contains(err.Error(), "bad@test.com") {
+		t.Fatalf("expected error naming bad@test.com, got %v", err)
+	}
+	if len(sentTo) != 2 || sentTo[1] != "good@test.com" {
+		t.Errorf("expected delivery to continue to good@test.com, sent to %v", sentTo)
 	}
 }
 
