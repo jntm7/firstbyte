@@ -56,7 +56,14 @@ type EmailConfig struct {
 	From     string      `yaml:"from"`
 	FromName string      `yaml:"from_name,omitempty"` // sender display name shown in inboxes
 	To       StringSlice `yaml:"to"`
+	// MaxDescriptionLength caps each article summary in characters; 0 uses the default, negative disables the cap
+	MaxDescriptionLength int `yaml:"max_description_length,omitempty"`
+	// HeadlinesOnly leaves article summaries out of the digest (default false: summaries shown)
+	HeadlinesOnly bool `yaml:"headlines_only,omitempty"`
 }
+
+// defaultMaxDescriptionLength is the summary cap used when none is configured.
+const defaultMaxDescriptionLength = 150
 
 // StoreConfig holds settings for the seen-article store.
 type StoreConfig struct {
@@ -148,6 +155,11 @@ func LoadConfig(path string) (*Config, error) {
 	// apply environment variable overrides
 	overrideFromEnv(&cfg)
 
+	// default the summary cap after env overrides so 0 means "default" in both places
+	if cfg.Email.MaxDescriptionLength == 0 {
+		cfg.Email.MaxDescriptionLength = defaultMaxDescriptionLength
+	}
+
 	// resolve the article age window
 	maxAge, err := resolveMaxAge(cfg.Filter)
 	if err != nil {
@@ -224,6 +236,7 @@ func loadEnvFile(path string) error {
 // overrideFromEnv applies environment variable overrides to the config.
 // Env vars take precedence over values in the YAML file.
 // Supported vars: MAX_AGE, MAX_AGE_DAYS (deprecated), SMTP_HOST, SMTP_PORT, EMAIL_FROM, EMAIL_FROM_NAME, EMAIL_TO,
+// EMAIL_MAX_DESCRIPTION_LENGTH, EMAIL_HEADLINES_ONLY,
 // STORE_PATH, FILTER_ALLOWLIST, FILTER_BLOCKLIST.
 func overrideFromEnv(cfg *Config) {
 	// legacy day count; clears max_age so the env value takes precedence
@@ -249,6 +262,17 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EMAIL_FROM_NAME"); v != "" {
 		cfg.Email.FromName = v
+	}
+	if v := os.Getenv("EMAIL_MAX_DESCRIPTION_LENGTH"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Email.MaxDescriptionLength = n
+		}
+	}
+	if v := os.Getenv("EMAIL_HEADLINES_ONLY"); v != "" {
+		// accepts true/false, 1/0, etc.; anything unparseable is ignored
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Email.HeadlinesOnly = b
+		}
 	}
 	if v := os.Getenv("EMAIL_TO"); v != "" {
 		cfg.Email.To = splitEnvList(v)

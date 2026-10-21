@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"path/filepath"
+	"strings"
 
 	"firstbyte/config"
 	"firstbyte/filter"
@@ -50,6 +51,58 @@ func GroupArticles(articles []filter.Article, sourceOrder []string) []ArticleGro
 		}
 	}
 	return result
+}
+
+// TruncateDescriptions returns a copy of groups with each article description
+// cut to at most limit characters, ending on a word boundary with "…".
+// A limit of zero or less leaves descriptions untouched.
+func TruncateDescriptions(groups []ArticleGroup, limit int) []ArticleGroup {
+	if limit <= 0 {
+		return groups
+	}
+	return mapDescriptions(groups, func(d string) string { return truncateText(d, limit) })
+}
+
+// DropDescriptions returns a copy of groups with every description removed,
+// for a headlines-only digest.
+func DropDescriptions(groups []ArticleGroup) []ArticleGroup {
+	return mapDescriptions(groups, func(string) string { return "" })
+}
+
+// mapDescriptions returns a copy of groups with fn applied to each description.
+func mapDescriptions(groups []ArticleGroup, fn func(string) string) []ArticleGroup {
+	// copy groups and items so the caller's articles are not modified
+	result := make([]ArticleGroup, len(groups))
+	for i, g := range groups {
+		items := make([]filter.Article, len(g.Items))
+		for j, a := range g.Items {
+			a.Description = fn(a.Description)
+			items[j] = a
+		}
+		result[i] = ArticleGroup{Source: g.Source, Items: items}
+	}
+	return result
+}
+
+// truncateText shortens s to at most limit runes (plus "…"), preferring to
+// break at the last space so words are not cut in half.
+func truncateText(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+
+	// cut at the limit; if that splits a word, back up to the last space
+	cut := string(runes[:limit])
+	if runes[limit] != ' ' {
+		if i := strings.LastIndex(cut, " "); i > 0 {
+			cut = cut[:i]
+		}
+	}
+
+	// drop trailing punctuation so we don't end up with ",…" or ".…"
+	cut = strings.TrimRight(cut, " ,;:.-–—")
+	return cut + "…"
 }
 
 // RenderEmail renders the HTML email template and returns the rendered body.

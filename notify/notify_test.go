@@ -176,3 +176,61 @@ func extractHeader(msg, header string) string {
 	}
 	return ""
 }
+
+func TestTruncateText(t *testing.T) {
+	tests := []struct {
+		name  string
+		in    string
+		limit int
+		want  string
+	}{
+		{name: "short text untouched", in: "Short summary.", limit: 50, want: "Short summary."},
+		{name: "exactly at limit", in: "abcde", limit: 5, want: "abcde"},
+		{name: "breaks on word boundary", in: "The quick brown fox jumps", limit: 12, want: "The quick…"},
+		{name: "trims trailing punctuation", in: "Hello, world and more", limit: 7, want: "Hello…"},
+		{name: "no spaces hard cut", in: "abcdefghij", limit: 4, want: "abcd…"},
+		{name: "counts runes not bytes", in: "héllo wörld ünïcode", limit: 11, want: "héllo wörld…"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := truncateText(tt.in, tt.limit); got != tt.want {
+				t.Errorf("truncateText(%q, %d) = %q, want %q", tt.in, tt.limit, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateDescriptionsDoesNotMutateInput(t *testing.T) {
+	// build one group with a long description
+	long := strings.Repeat("word ", 100)
+	groups := []ArticleGroup{{Source: "A", Items: []filter.Article{{Title: "T", Description: long}}}}
+
+	got := TruncateDescriptions(groups, 20)
+	if n := len([]rune(got[0].Items[0].Description)); n > 21 {
+		t.Errorf("truncated description has %d runes, want <= 21", n)
+	}
+	if groups[0].Items[0].Description != long {
+		t.Error("input description was modified")
+	}
+
+	// a non-positive limit leaves descriptions alone
+	if got := TruncateDescriptions(groups, -1); got[0].Items[0].Description != long {
+		t.Error("limit -1 should not truncate")
+	}
+}
+
+func TestDropDescriptions(t *testing.T) {
+	groups := []ArticleGroup{{Source: "A", Items: []filter.Article{{Title: "T", Description: "A real summary here."}}}}
+
+	got := DropDescriptions(groups)
+	if got[0].Items[0].Description != "" {
+		t.Errorf("description = %q, want empty", got[0].Items[0].Description)
+	}
+	if got[0].Items[0].Title != "T" {
+		t.Errorf("title = %q, want %q", got[0].Items[0].Title, "T")
+	}
+	if groups[0].Items[0].Description == "" {
+		t.Error("input description was modified")
+	}
+}

@@ -658,3 +658,81 @@ func TestLoadConfigFromName(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadConfigMaxDescriptionLength(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string            // YAML email block
+		env   map[string]string // env overrides to set
+		want  int
+	}{
+		{name: "defaults to 150", email: "email:\n  from: a@b.com\n", want: 150},
+		{name: "set in yaml", email: "email:\n  from: a@b.com\n  max_description_length: 120\n", want: 120},
+		{name: "negative disables", email: "email:\n  from: a@b.com\n  max_description_length: -1\n", want: -1},
+		{name: "env override", email: "email:\n  from: a@b.com\n  max_description_length: 120\n", env: map[string]string{"EMAIL_MAX_DESCRIPTION_LENGTH": "80"}, want: 80},
+		{name: "env zero means default", email: "email:\n  from: a@b.com\n  max_description_length: 120\n", env: map[string]string{"EMAIL_MAX_DESCRIPTION_LENGTH": "0"}, want: 150},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// apply env overrides for this case only
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			// write a minimal config with the case's email block
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			yamlContent := "sources:\n  - name: Test\n    url: https://example.com/rss\n" + tt.email
+			if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to write test config: %v", err)
+			}
+
+			cfg, err := LoadConfig(configPath)
+			if err != nil {
+				t.Fatalf("LoadConfig() error: %v", err)
+			}
+			if cfg.Email.MaxDescriptionLength != tt.want {
+				t.Errorf("MaxDescriptionLength = %d, want %d", cfg.Email.MaxDescriptionLength, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfigHeadlinesOnly(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string            // YAML email block
+		env   map[string]string // env overrides to set
+		want  bool
+	}{
+		{name: "defaults to summaries shown", email: "email:\n  from: a@b.com\n", want: false},
+		{name: "set in yaml", email: "email:\n  from: a@b.com\n  headlines_only: true\n", want: true},
+		{name: "env turns on", email: "email:\n  from: a@b.com\n", env: map[string]string{"EMAIL_HEADLINES_ONLY": "true"}, want: true},
+		{name: "env turns off", email: "email:\n  from: a@b.com\n  headlines_only: true\n", env: map[string]string{"EMAIL_HEADLINES_ONLY": "0"}, want: false},
+		{name: "bad env ignored", email: "email:\n  from: a@b.com\n  headlines_only: true\n", env: map[string]string{"EMAIL_HEADLINES_ONLY": "maybe"}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// apply env overrides for this case only
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			// write a minimal config with the case's email block
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			yamlContent := "sources:\n  - name: Test\n    url: https://example.com/rss\n" + tt.email
+			if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to write test config: %v", err)
+			}
+
+			cfg, err := LoadConfig(configPath)
+			if err != nil {
+				t.Fatalf("LoadConfig() error: %v", err)
+			}
+			if cfg.Email.HeadlinesOnly != tt.want {
+				t.Errorf("HeadlinesOnly = %v, want %v", cfg.Email.HeadlinesOnly, tt.want)
+			}
+		})
+	}
+}

@@ -86,6 +86,8 @@ email:
   smtp_port: 587
   from: digest@example.com
   # from_name: FirstByte     # Sender name shown in inboxes (default: FirstByte)
+  # max_description_length: 150  # -1 = no limit (default: 150)
+  # headlines_only: false         # true = titles and dates only (default: false)
   to:
     - you@example.com
     # - team@example.com      # Add more recipients as needed

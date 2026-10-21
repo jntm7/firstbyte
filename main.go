@@ -136,6 +136,12 @@ func main() {
 
 	// group articles by source for templates
 	groups := notify.GroupArticles(result, sourceOrder)
+	// headlines-only drops summaries; otherwise keep long ones from swamping the digest
+	if cfg.Email.HeadlinesOnly {
+		groups = notify.DropDescriptions(groups)
+	} else {
+		groups = notify.TruncateDescriptions(groups, cfg.Email.MaxDescriptionLength)
+	}
 	// header date, e.g. "Tue, Oct 6, 2026"
 	date := time.Now().Format("Mon, Jan 2, 2006")
 	data := notify.DigestData{
