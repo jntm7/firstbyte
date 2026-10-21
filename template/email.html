@@ -3,37 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
   <title>FirstByte · {{.Date}}</title>
 </head>
-<!-- Palette matches the site's light theme: page #f5efe6, line #d8cebe, heading #1a1a1a,
-     body #3b352d, muted #776c5c, accent #0f766e. Solid hex only (Outlook ignores rgba). -->
-<body style="margin:0;padding:0;background-color:#ece5da;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ece5da;padding:24px 12px;">
+<!-- White outer page #ffffff around a dark card; logo tile #0e0f0f, card #171918, header #1b2422, line #2c302e, heading #f2efe9,
+     body #c8c2b7, muted #8c8476, accent #2dd4bf. Solid hex only (Outlook ignores rgba). -->
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;padding:18px 10px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#f5efe6;border:1px solid #d8cebe;border-radius:12px;overflow:hidden;">
-          <!-- Header: logo + name on the left, date on the right, faint teal tint -->
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#171918;border:1px solid #2c302e;border-radius:12px;overflow:hidden;">
+          <!-- Header: logo + name on the left, date on the right, faint teal tint on dark -->
           <tr>
-            <td style="background-color:#e7e8df;border-bottom:1px solid #d8cebe;padding:20px 28px;">
+            <td style="background-color:#1b2422;border-bottom:1px solid #2c302e;padding:20px 28px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td valign="middle">
                     <table role="presentation" cellpadding="0" cellspacing="0">
                       <tr>
                         <!-- Logo built from HTML blocks (no image request) -->
-                        <td width="24" height="24" valign="middle" style="width:24px;height:24px;background-color:#1a1a1a;border-radius:6px;">
+                        <td width="24" height="24" valign="middle" style="width:24px;height:24px;background-color:#0e0f0f;border-radius:6px;">
                           <div style="padding-left:6px;">
                             <div style="width:11px;height:2px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
                             <div style="width:9px;height:2px;margin-top:3px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
                             <div style="width:7px;height:2px;margin-top:3px;background-color:#2dd4bf;border-radius:1px;font-size:0;line-height:0;"></div>
                           </div>
                         </td>
-                        <td valign="middle" style="padding-left:10px;color:#1a1a1a;font-size:20px;font-weight:600;">FirstByte</td>
+                        <td valign="middle" style="padding-left:10px;color:#f2efe9;font-size:20px;font-weight:600;">FirstByte</td>
                       </tr>
                     </table>
                   </td>
-                  <td align="right" valign="middle" style="color:#776c5c;font-size:13px;white-space:nowrap;">{{.Date}}</td>
+                  <td align="right" valign="middle" style="color:#8c8476;font-size:13px;white-space:nowrap;">{{.Date}}</td>
                 </tr>
               </table>
             </td>
@@ -45,20 +46,20 @@
               {{if .Articles}}
               {{range $i, $group := .Articles}}
               <!-- Divider between source groups (not before the first) -->
-              {{if $i}}<div style="border-top:1px solid #d8cebe;font-size:0;line-height:0;"></div>{{end}}
+              {{if $i}}<div style="border-top:1px solid #2c302e;font-size:0;line-height:0;"></div>{{end}}
               <!-- Source heading -->
-              <h2 style="color:#1a1a1a;font-size:16px;font-weight:600;margin:24px 0 12px;">{{$group.Source}}</h2>
+              <h2 style="color:#f2efe9;font-size:16px;font-weight:600;margin:24px 0 12px;">{{$group.Source}}</h2>
 
               {{range $group.Items}}
               <!-- Article -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
                 <tr>
                   <td>
-                    <a href="{{.Link}}" style="color:#1a1a1a;font-size:17px;font-weight:500;line-height:1.4;text-decoration:underline;text-decoration-color:#0f766e;text-underline-offset:3px;">{{.Title}}</a>
+                    <a href="{{.Link}}" style="color:#f2efe9;font-size:17px;font-weight:500;line-height:1.4;text-decoration:underline;text-decoration-color:#2dd4bf;text-underline-offset:3px;">{{.Title}}</a>
                     {{if .Description}}
-                    <p style="color:#3b352d;font-size:15px;line-height:1.5;margin:6px 0 0;">{{.Description}}</p>
+                    <p style="color:#c8c2b7;font-size:15px;line-height:1.5;margin:6px 0 0;">{{.Description}}</p>
                     {{end}}
-                    <p style="color:#776c5c;font-size:13px;margin:6px 0 0;">{{.Published.Format "Jan 2, 2006"}}</p>
+                    <p style="color:#8c8476;font-size:13px;margin:6px 0 0;">{{.Published.Format "Jan 2, 2006"}}</p>
                   </td>
                 </tr>
               </table>
@@ -66,15 +67,15 @@
               {{end}}
               {{else}}
               <!-- Empty state -->
-              <p style="color:#776c5c;font-size:16px;text-align:center;padding:32px 0;margin:0;">No articles today. Enjoy the quiet.</p>
+              <p style="color:#8c8476;font-size:16px;text-align:center;padding:32px 0;margin:0;">No articles today. Enjoy the quiet.</p>
               {{end}}
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="border-top:1px solid #d8cebe;padding:18px 28px;">
-              <p style="color:#776c5c;font-size:12px;margin:0;text-align:center;">Generated by FirstByte</p>
+            <td style="border-top:1px solid #2c302e;padding:18px 28px;">
+              <p style="color:#8c8476;font-size:12px;margin:0;text-align:center;">Generated by FirstByte</p>
             </td>
           </tr>
         </table>
